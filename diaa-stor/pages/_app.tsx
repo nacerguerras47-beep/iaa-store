@@ -10,15 +10,41 @@ import '../styles/globals.css'
 
 function App({ Component, pageProps }: AppProps) {
   const { locale } = useRouter()
-  const isRTL = locale === 'ar'
 
+  /*
+   * RTL / lang attribute — applied in useEffect (client-only) so it never
+   * causes a mismatch. The server renders <html> with whatever lang Next.js
+   * sets via i18n config; the client then synchronises dir and lang after
+   * hydration. Because these are on <html> which has suppressHydrationWarning
+   * in _document.tsx, React accepts the difference silently.
+   */
   useEffect(() => {
-    document.documentElement.dir = isRTL ? 'rtl' : 'ltr'
+    const isRTL = locale === 'ar'
+    document.documentElement.dir  = isRTL ? 'rtl' : 'ltr'
     document.documentElement.lang = locale || 'fr'
-  }, [locale, isRTL])
+  }, [locale])
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+    /*
+     * ThemeProvider configuration for zero hydration errors:
+     *
+     *   attribute="class"  — adds "dark" / "light" class to <html>
+     *   defaultTheme="light" — consistent server default
+     *   enableSystem={false} — disabling system detection prevents the server
+     *                          and client from computing different defaults
+     *                          (server has no OS preference, client might).
+     *                          Users can still toggle manually.
+     *   disableTransitionOnChange — prevents a flash of wrong theme on load
+     *
+     * suppressHydrationWarning on <Html> and <body> in _document.tsx handles
+     * the class attribute mismatch that next-themes introduces.
+     */
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+    >
       <CartProvider>
         <Head>
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -31,14 +57,14 @@ function App({ Component, pageProps }: AppProps) {
           toastOptions={{
             duration: 3500,
             style: {
-              borderRadius: '14px',
-              padding: '14px 18px',
-              fontWeight: '600',
-              fontSize: '14px',
-              boxShadow: '0 8px 32px rgba(15,35,71,0.18)',
+              borderRadius:  '14px',
+              padding:       '14px 18px',
+              fontWeight:    '600',
+              fontSize:      '14px',
+              boxShadow:     '0 8px 32px rgba(15,35,71,0.18)',
             },
             success: { style: { background: '#0f2347', color: '#fff' } },
-            error: { style: { background: '#ef4444', color: '#fff' } },
+            error:   { style: { background: '#ef4444', color: '#fff' } },
           }}
         />
       </CartProvider>
