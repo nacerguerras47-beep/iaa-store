@@ -5,15 +5,35 @@ import { useCart } from '../../context/CartContext'
 import toast from 'react-hot-toast'
 
 interface Product {
-  id: string; name: string; slug?: string; price: number
-  promo_price?: number | null; images: string[]; category?: string
-  is_new?: boolean; stock?: number
+  id:          string
+  name:        string
+  slug?:       string
+  price:       number
+  promo_price?: number | null
+  images:      string[]
+  category?:   string
+  is_new?:     boolean
+  stock?:      number
+}
+
+/**
+ * fmt — always uses 'fr-FR' locale explicitly.
+ *
+ * NEVER call .toLocaleString() without an explicit locale in server-rendered
+ * components. Node.js on Netlify defaults to 'en-US' (1,500 with commas).
+ * Algerian browsers default to 'fr-FR' (1 500 with spaces) or 'ar-DZ'
+ * (Arabic-Indic numerals). The resulting text node mismatch triggers
+ * React hydration error #418.
+ */
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
 }
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart, isInCart } = useCart()
-  const hasPromo = product.promo_price && product.promo_price < product.price
-  const discount  = hasPromo
+
+  const hasPromo = Boolean(product.promo_price && product.promo_price < product.price)
+  const discount = hasPromo
     ? Math.round(((product.price - product.promo_price!) / product.price) * 100)
     : 0
   const displayPrice = hasPromo ? product.promo_price! : product.price
@@ -38,19 +58,9 @@ export default function ProductCard({ product }: { product: Product }) {
 
   return (
     <Link href={href}>
-      {/*
-        * NOTE: 'group' is intentionally placed here on the <article> element,
-        * NOT in globals.css. Tailwind forbids 'group' inside @apply because it
-        * is a behaviour marker that must appear directly in the HTML class list
-        * to be recognised by the CSS engine.
-        *
-        * The hover effects for .product-card-img and .product-card-overlay are
-        * handled via plain CSS parent→child selectors in globals.css so that
-        * group-hover: variants are not needed at all.
-        */}
       <article className="product-card h-full">
 
-        {/* Image container */}
+        {/* Image */}
         <div className="relative overflow-hidden bg-slate-50 dark:bg-slate-700 aspect-square">
           <Image
             src={image}
@@ -60,16 +70,10 @@ export default function ProductCard({ product }: { product: Product }) {
             sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
             loading="lazy"
           />
-
-          {/* Promo / New badges */}
           {hasPromo && <div className="badge-promo">-{discount}%</div>}
           {product.is_new && !hasPromo && <div className="badge-new">Nouveau</div>}
 
-          {/*
-            * Quick-add overlay:
-            * Visibility is controlled by .product-card:hover .product-card-overlay
-            * in globals.css — no group / group-hover utilities needed.
-            */}
+          {/* Quick-add overlay — revealed by .product-card:hover in globals.css */}
           <div className="product-card-overlay">
             <button
               onClick={handleAddToCart}
@@ -83,7 +87,7 @@ export default function ProductCard({ product }: { product: Product }) {
           </div>
         </div>
 
-        {/* Product info */}
+        {/* Info */}
         <div className="p-3.5 flex flex-col flex-1">
           {product.category && (
             <span className="text-[10px] font-bold text-navy-400 dark:text-navy-400 uppercase tracking-wide mb-1">
@@ -94,21 +98,22 @@ export default function ProductCard({ product }: { product: Product }) {
             {product.name}
           </h3>
 
-          {/* Price */}
           <div className="flex items-center justify-between">
             <div>
               {hasPromo ? (
                 <>
+                  {/* fmt() used here — explicit 'fr-FR' locale */}
                   <div className="text-base font-black text-gold-600 dark:text-gold-400">
-                    {displayPrice.toLocaleString()} <span className="text-xs">DA</span>
+                    {fmt(displayPrice)} <span className="text-xs">DA</span>
                   </div>
                   <div className="text-xs text-slate-400 line-through">
-                    {product.price.toLocaleString()} DA
+                    {fmt(product.price)} DA
                   </div>
                 </>
               ) : (
                 <div className="text-base font-black text-slate-800 dark:text-white">
-                  {displayPrice.toLocaleString()} <span className="text-xs font-semibold">DA</span>
+                  {/* fmt() used here — explicit 'fr-FR' locale */}
+                  {fmt(displayPrice)} <span className="text-xs font-semibold">DA</span>
                 </div>
               )}
             </div>
@@ -119,7 +124,6 @@ export default function ProductCard({ product }: { product: Product }) {
             )}
           </div>
 
-          {/* Low stock warning */}
           {product.stock !== undefined && product.stock > 0 && product.stock <= 5 && (
             <div className="mt-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -133,4 +137,3 @@ export default function ProductCard({ product }: { product: Product }) {
     </Link>
   )
 }
-
