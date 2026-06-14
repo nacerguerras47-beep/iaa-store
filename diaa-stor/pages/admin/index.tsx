@@ -59,9 +59,12 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
+    // Read localStorage only on client. Setting mounted=true AFTER reading
+    // ensures the first client render matches the server render (both show
+    // a neutral loading state), satisfying React hydration.
     const saved = localStorage.getItem('ds_admin_token')
     if (saved) { setToken(saved); setAuthed(true) }
+    setMounted(true)
   }, [])
 
   const apiHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -83,6 +86,24 @@ export default function AdminPage() {
     localStorage.removeItem('ds_admin_token')
     setAuthed(false); setToken(''); setPw('')
   }
+
+  // ── Loading state (server render + first client render before effects) ──
+  // Both server and client render this neutral screen, so they agree.
+  // After useEffect runs (client-only), mounted becomes true and we show
+  // either the login form or the dashboard — no hydration mismatch.
+  if (!mounted) return (
+    <>
+      <Head><title>Admin — Diaa Store</title></Head>
+      <div className="min-h-screen bg-gradient-hero flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-16 h-16">
+            <Image src="/logo.png" alt="Diaa Store" fill className="object-contain" />
+          </div>
+          <div className="w-8 h-8 border-4 border-white/20 border-t-gold-400 rounded-full animate-spin" />
+        </div>
+      </div>
+    </>
+  )
 
   // ── Login screen ──
   if (!authed) return (
