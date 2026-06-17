@@ -22,6 +22,15 @@ const schema = z.object({
   delivery_type: z.enum(['domicile', 'bureau']),
 })
 type FormData = z.infer<typeof schema>
+/**
+ * fmt — always passes 'fr-FR' explicitly to toLocaleString.
+ * See pages/product/[slug].tsx for full explanation of why this is required
+ * to avoid React hydration error #418 between Node SSR and browser locales.
+ */
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
+}
+
 
 export default function CartPage() {
   const { items, count, total, removeFromCart, updateQuantity, clearCart } = useCart()
@@ -163,9 +172,9 @@ export default function CartPage() {
                         <h3 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-2 hover:text-navy-600 dark:hover:text-gold-400 transition-colors">{item.name}</h3>
                       </Link>
                       {item.promo_price && item.promo_price < item.price && (
-                        <div className="text-[10px] text-slate-400 line-through">{item.price.toLocaleString()} DA</div>
+                        <div className="text-[10px] text-slate-400 line-through">{fmt(item.price)} DA</div>
                       )}
-                      <div className="text-sm font-black text-gold-600 dark:text-gold-400 mt-0.5">{unitPrice.toLocaleString()} DA</div>
+                      <div className="text-sm font-black text-gold-600 dark:text-gold-400 mt-0.5">{fmt(unitPrice)} DA</div>
                       <div className="flex items-center justify-between mt-3">
                         <div className="flex items-center gap-2">
                           <button onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
@@ -179,7 +188,7 @@ export default function CartPage() {
                           </button>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-slate-800 dark:text-white">{(unitPrice * item.quantity).toLocaleString()} DA</span>
+                          <span className="text-sm font-black text-slate-800 dark:text-white">{fmt(unitPrice * item.quantity)} DA</span>
                           <button onClick={() => removeFromCart(item.product_id)}
                             className="w-7 h-7 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
                             <Trash2 size={13} />
@@ -269,15 +278,15 @@ export default function CartPage() {
                   <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3.5 space-y-2">
                     <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span>Sous-total ({count} articles)</span>
-                      <span className="font-bold">{total.toLocaleString()} DA</span>
+                      <span className="font-bold">{fmt(total)} DA</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span>Livraison</span>
-                      <span className="font-bold">{deliveryCost.toLocaleString()} DA</span>
+                      <span className="font-bold">{fmt(deliveryCost)} DA</span>
                     </div>
                     <div className="border-t border-slate-200 dark:border-slate-600 pt-2 flex justify-between items-center">
                       <span className="text-sm font-bold text-slate-800 dark:text-white">Total</span>
-                      <span className="text-lg font-black text-gold-600 dark:text-gold-400">{grandTotal.toLocaleString()} DA</span>
+                      <span className="text-lg font-black text-gold-600 dark:text-gold-400">{fmt(grandTotal)} DA</span>
                     </div>
                     <div className="text-[10px] text-slate-400 flex items-center gap-1.5 pt-1">
                       💳 Paiement à la livraison uniquement
@@ -285,7 +294,7 @@ export default function CartPage() {
                   </div>
 
                   <button type="submit" disabled={submitting || items.length === 0} className="w-full btn-gold py-4 rounded-2xl">
-                    {submitting ? <><Loader2 size={18} className="animate-spin" /> Envoi...</> : <><Check size={18} /> Confirmer — {grandTotal.toLocaleString()} DA</>}
+                    {submitting ? <><Loader2 size={18} className="animate-spin" /> Envoi...</> : <><Check size={18} /> Confirmer — {fmt(grandTotal)} DA</>}
                   </button>
                 </form>
               </div>

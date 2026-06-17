@@ -17,6 +17,15 @@ const schema = z.object({
 })
 
 type FormData = z.infer<typeof schema>
+/**
+ * fmt — always passes 'fr-FR' explicitly to toLocaleString.
+ * See pages/product/[slug].tsx for full explanation of why this is required
+ * to avoid React hydration error #418 between Node SSR and browser locales.
+ */
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
+}
+
 
 interface Props {
   product: { id: string; name: string; price: number; promo_price?: number | null; images: string[] }
@@ -111,7 +120,7 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, onS
             <Home size={20} className={delivery === 'domicile' ? 'text-navy-700 dark:text-navy-300' : 'text-slate-400'} />
             <div>
               <div className="text-xs font-bold text-slate-800 dark:text-white">À domicile</div>
-              <div className="text-xs font-black text-gold-600 dark:text-gold-400">{deliveryPrices.home.toLocaleString()} DA</div>
+              <div className="text-xs font-black text-gold-600 dark:text-gold-400">{fmt(deliveryPrices.home)} DA</div>
             </div>
           </button>
           <button type="button" onClick={() => onDeliveryChange('bureau')}
@@ -119,7 +128,7 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, onS
             <Building2 size={20} className={delivery === 'bureau' ? 'text-navy-700 dark:text-navy-300' : 'text-slate-400'} />
             <div>
               <div className="text-xs font-bold text-slate-800 dark:text-white">Au bureau</div>
-              <div className="text-xs font-black text-gold-600 dark:text-gold-400">{deliveryPrices.office.toLocaleString()} DA</div>
+              <div className="text-xs font-black text-gold-600 dark:text-gold-400">{fmt(deliveryPrices.office)} DA</div>
             </div>
           </button>
         </div>
@@ -181,15 +190,15 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, onS
         <div className="space-y-2 text-sm mb-4">
           <div className="flex justify-between text-navy-200">
             <span className="truncate mr-2">{product.name} × {qty}</span>
-            <span className="font-bold flex-shrink-0">{(unitPrice * qty).toLocaleString()} DA</span>
+            <span className="font-bold flex-shrink-0">{fmt(unitPrice * qty)} DA</span>
           </div>
           <div className="flex justify-between text-navy-200">
             <span>Livraison ({delivery === 'domicile' ? 'Domicile' : 'Bureau'})</span>
-            <span className="font-bold">{deliveryCost.toLocaleString()} DA</span>
+            <span className="font-bold">{fmt(deliveryCost)} DA</span>
           </div>
           <div className="border-t border-navy-600 pt-2 flex justify-between items-center">
             <span className="font-bold">Total à payer</span>
-            <span className="text-xl font-black text-gold-400">{total.toLocaleString()} DA</span>
+            <span className="text-xl font-black text-gold-400">{fmt(total)} DA</span>
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-navy-300 bg-navy-900/50 rounded-xl p-2.5">
@@ -204,7 +213,7 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, onS
         {submitting ? (
           <><Loader2 size={20} className="animate-spin" /> Envoi en cours...</>
         ) : (
-          <><Check size={20} /> Confirmer ma commande — {total.toLocaleString()} DA</>
+          <><Check size={20} /> Confirmer ma commande — {fmt(total)} DA</>
         )}
       </button>
     </form>

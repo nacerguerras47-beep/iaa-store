@@ -11,6 +11,17 @@ import { supabase } from '../../lib/supabase'
 import { useCart } from '../../context/CartContext'
 
 interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean }
+/**
+ * fmt — always passes 'fr-FR' explicitly to toLocaleString.
+ * Without an explicit locale, Node.js (Netlify build/SSR) defaults to
+ * 'en-US' (1,500 with commas) while Algerian browsers default to 'fr-FR'
+ * (1 500 with spaces) or Arabic-Indic numerals. The mismatched text node
+ * triggers React hydration error #418.
+ */
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
+}
+
 
 export default function ProductPage({ product, deliveryPrices }: { product: Product; deliveryPrices: { home:number; office:number } }) {
   const { addToCart, isInCart } = useCart()
@@ -24,7 +35,7 @@ export default function ProductPage({ product, deliveryPrices }: { product: Prod
   const displayPrice = hasPromo ? product.promo_price! : product.price
   const discount = hasPromo ? Math.round(((product.price - product.promo_price!) / product.price) * 100) : 0
   const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '213XXXXXXXXX'
-  const waMessage = `Bonjour ! Je voudrais commander le produit suivant :\n\n📦 ${product.name}\n💰 Prix : ${displayPrice.toLocaleString()} DA\n\nMerci de me contacter.`
+  const waMessage = `Bonjour ! Je voudrais commander le produit suivant :\n\n📦 ${product.name}\n💰 Prix : ${fmt(displayPrice)} DA\n\nMerci de me contacter.`
 
   const handleAddToCart = () => {
     addToCart({
@@ -167,14 +178,14 @@ export default function ProductPage({ product, deliveryPrices }: { product: Prod
               <div className="flex items-baseline gap-3 mb-3">
                 {hasPromo ? (
                   <>
-                    <span className="text-3xl font-black text-gold-600 dark:text-gold-400">{displayPrice.toLocaleString()} DA</span>
-                    <span className="text-lg text-slate-400 line-through">{product.price.toLocaleString()} DA</span>
+                    <span className="text-3xl font-black text-gold-600 dark:text-gold-400">{fmt(displayPrice)} DA</span>
+                    <span className="text-lg text-slate-400 line-through">{fmt(product.price)} DA</span>
                     <span className="bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-400 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1">
                       <Zap size={11} className="fill-current" /> PROMO
                     </span>
                   </>
                 ) : (
-                  <span className="text-3xl font-black text-slate-900 dark:text-white">{displayPrice.toLocaleString()} DA</span>
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{fmt(displayPrice)} DA</span>
                 )}
               </div>
 

@@ -38,6 +38,18 @@ interface Promotion {
   starts_at?: string; ends_at?: string; is_active: boolean
 }
 
+
+/**
+ * fmt — always passes 'fr-FR' explicitly to toLocaleString.
+ * Kept consistent with the rest of the app even though this admin page is
+ * never server-rendered with real data (no getServerSideProps), so it carries
+ * no hydration risk on its own — this is purely for consistent number
+ * formatting regardless of the admin's browser locale.
+ */
+function fmt(n: number): string {
+  return n.toLocaleString('fr-FR')
+}
+
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   pending:   { label: 'En attente', cls: 'status-pending'   },
   confirmed: { label: 'Confirmé',   cls: 'status-confirmed' },
@@ -295,7 +307,7 @@ function DashTab({ apiHeaders }: { apiHeaders: any }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total commandes"   value={stats.orders}   icon={ShoppingBag}   gradient="bg-gradient-to-br from-navy-600 to-navy-800" sub="Toutes les commandes"/>
         <StatCard label="En attente"        value={stats.pending}  icon={Clock}          gradient="bg-gradient-to-br from-amber-500 to-amber-600" sub="À traiter"/>
-        <StatCard label="Chiffre d'affaires" value={`${stats.revenue.toLocaleString()} DA`} icon={DollarSign} gradient="bg-gradient-to-br from-gold-500 to-gold-600" sub="Total des ventes"/>
+        <StatCard label="Chiffre d'affaires" value={`${fmt(stats.revenue)} DA`} icon={DollarSign} gradient="bg-gradient-to-br from-gold-500 to-gold-600" sub="Total des ventes"/>
         <StatCard label="Produits"          value={stats.products} icon={Package}        gradient="bg-gradient-to-br from-navy-700 to-navy-900" sub="Dans le catalogue"/>
       </div>
 
@@ -324,7 +336,7 @@ function DashTab({ apiHeaders }: { apiHeaders: any }) {
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs text-slate-500 dark:text-slate-400 max-w-[140px] truncate">{o.product_name}</td>
                   <td className="px-4 py-3 hidden lg:table-cell text-xs text-slate-500">{o.wilaya}</td>
-                  <td className="px-4 py-3 text-right font-bold text-xs text-slate-800 dark:text-white whitespace-nowrap">{o.total_price?.toLocaleString()} DA</td>
+                  <td className="px-4 py-3 text-right font-bold text-xs text-slate-800 dark:text-white whitespace-nowrap">{(o.total_price ? fmt(o.total_price) : '0')} DA</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`badge px-2 py-0.5 text-[10px] font-bold rounded-lg ${STATUS_MAP[o.status]?.cls || 'bg-slate-100 text-slate-500'}`}>
                       {STATUS_MAP[o.status]?.label || o.status}
@@ -448,11 +460,11 @@ function ProdTab({ apiHeaders }: { apiHeaders: any }) {
                       <td className="px-4 py-3 text-right hidden sm:table-cell">
                         {p.promo_price ? (
                           <div>
-                            <div className="text-xs font-black text-gold-600 dark:text-gold-400">{p.promo_price.toLocaleString()} DA</div>
-                            <div className="text-[10px] text-slate-400 line-through">{p.price.toLocaleString()} DA</div>
+                            <div className="text-xs font-black text-gold-600 dark:text-gold-400">{fmt(p.promo_price)} DA</div>
+                            <div className="text-[10px] text-slate-400 line-through">{fmt(p.price)} DA</div>
                           </div>
                         ) : (
-                          <div className="text-xs font-bold text-slate-700 dark:text-slate-200">{p.price.toLocaleString()} DA</div>
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(p.price)} DA</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
@@ -807,7 +819,7 @@ function OrdTab({ apiHeaders }: { apiHeaders: any }) {
                         <div className="text-[10px] text-slate-400">{o.delivery_type === 'domicile' ? '🏠 Domicile' : '🏢 Bureau'}</div>
                       </td>
                       <td className="px-4 py-3 text-right hidden sm:table-cell whitespace-nowrap font-bold text-xs text-slate-800 dark:text-white">
-                        {o.total_price?.toLocaleString()} DA
+                        {(o.total_price ? fmt(o.total_price) : '0')} DA
                       </td>
                       <td className="px-4 py-3 text-center hidden xl:table-cell">
                         <input
@@ -839,8 +851,8 @@ function OrdTab({ apiHeaders }: { apiHeaders: any }) {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Adresse</span><span className="text-slate-700 dark:text-slate-200">{o.address}</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Commune</span><span className="text-slate-700 dark:text-slate-200">{o.commune}</span></div>
-                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Livraison</span><span className="text-slate-700 dark:text-slate-200">{o.delivery_price?.toLocaleString()} DA</span></div>
-                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Prix unitaire</span><span className="text-slate-700 dark:text-slate-200">{o.unit_price?.toLocaleString()} DA</span></div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Livraison</span><span className="text-slate-700 dark:text-slate-200">{(o.delivery_price ? fmt(o.delivery_price) : '0')} DA</span></div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Prix unitaire</span><span className="text-slate-700 dark:text-slate-200">{(o.unit_price ? fmt(o.unit_price) : '0')} DA</span></div>
                           </div>
                         </td>
                       </tr>
