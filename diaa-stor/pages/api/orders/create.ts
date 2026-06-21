@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { supabaseAdmin } from '../../../lib/supabase'
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { sendTelegramNotification } from '../../../lib/telegram'
 import { appendOrderToSheet } from '../../../lib/googleSheets'
 
