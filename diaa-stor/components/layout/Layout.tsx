@@ -2,6 +2,7 @@ import Navbar from './Navbar'
 import Footer from './Footer'
 import WhatsAppButton from '../ui/WhatsAppButton'
 import Head from 'next/head'
+import { useTranslation } from 'next-i18next'
 
 interface Props {
   children: React.ReactNode
@@ -11,8 +12,9 @@ interface Props {
 }
 
 export default function Layout({ children, title, description, noFooter }: Props) {
-  const siteTitle = title ? `${title} — Diaa Store` : 'Diaa Store | Illuminate Your Shopping'
-  const siteDesc = description || 'Boutique en ligne Diaa Store. Produits de qualité livrés partout en Algérie. Paiement à la livraison.'
+  const { t } = useTranslation('common')
+  const siteTitle = title ? `${title} — ${t('storeName')}` : `${t('storeName')} | ${t('tagline')}`
+  const siteDesc = description || t('storeDescription')
   return (
     <>
       <Head>

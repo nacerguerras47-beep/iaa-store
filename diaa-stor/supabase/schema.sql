@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (key, value) VALUES
   ('delivery_home_price',   '400'),
   ('delivery_office_price', '250'),
-  ('whatsapp_number',       '213XXXXXXXXX'),
+  ('whatsapp_number',       '213795653670'),
   ('store_name',            'Diaa Store'),
   ('store_email',           '')
 ON CONFLICT (key) DO NOTHING;

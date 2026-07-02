@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
+import { updateOrderNombreInSheet } from '../../../lib/googleSheets'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
@@ -43,9 +44,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Statut invalide' })
     }
 
-    const updates: Record<string, any> = { updated_at: new Date().toISOString() }
-    if (status  !== undefined) updates.status = status
-    if (nombre  !== undefined) updates.nombre = nombre === '' ? null : Number(nombre)
+    const updates: Record<string, string | number | null> = { updated_at: new Date().toISOString() }
+    if (status  !== undefined) updates.status = String(status)
+    if (nombre  !== undefined) updates.nombre = nombre === '' || nombre === null ? null : Number(nombre)
 
     const { data, error } = await supabaseAdmin
       .from('orders')
@@ -55,7 +56,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
+
+    // Sync nombre change to Google Sheets (column H)
+    if (nombre !== undefined && data?.order_number) {
+      updateOrderNombreInSheet(data.order_number, updates.nombre as number | null)
+    }
+
     return res.json(data)
+  }
+
+  // DELETE — delete an order
+  if (req.method === 'DELETE') {
+    const { id } = req.body
+    if (!id) return res.status(400).json({ error: 'ID requis' })
+
+    const { error } = await supabaseAdmin
+      .from('orders')
+      .delete()
+      .eq('id', id)
+
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ success: true })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

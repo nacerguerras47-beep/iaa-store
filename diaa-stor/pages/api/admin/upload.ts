@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '15mb' } },
+  api: { bodyParser: { sizeLimit: '100mb' } },
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

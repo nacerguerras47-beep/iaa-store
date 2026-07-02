@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { ShoppingCart, Zap, Check } from 'lucide-react'
+import { useTranslation } from 'next-i18next'
 import { useCart } from '../../context/CartContext'
 import toast from 'react-hot-toast'
 
@@ -14,6 +15,9 @@ interface Product {
   category?:   string
   is_new?:     boolean
   stock?:      number
+  has_bundles?: boolean
+  bundles?:    { name: string; price: number; quantity_trigger?: number | null }[]
+  extra_unit_price?: number | null
 }
 
 /**
@@ -30,12 +34,10 @@ function fmt(n: number): string {
 }
 
 export default function ProductCard({ product }: { product: Product }) {
+  const { t } = useTranslation('common')
   const { addToCart, isInCart } = useCart()
 
   const hasPromo = Boolean(product.promo_price && product.promo_price < product.price)
-  const discount = hasPromo
-    ? Math.round(((product.price - product.promo_price!) / product.price) * 100)
-    : 0
   const displayPrice = hasPromo ? product.promo_price! : product.price
   const image  = product.images?.[0] || '/placeholder.jpg'
   const href   = `/product/${product.slug || product.id}`
@@ -44,6 +46,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    const hasBundles = product.has_bundles && product.bundles?.length
     addToCart({
       id:          `${product.id}-cart`,
       product_id:  product.id,
@@ -52,8 +55,10 @@ export default function ProductCard({ product }: { product: Product }) {
       promo_price: product.promo_price,
       image,
       slug: product.slug || product.id,
+      bundles: hasBundles ? product.bundles : undefined,
+      extra_unit_price: product.extra_unit_price ?? null,
     })
-    toast.success(`${product.name} ajouté au panier !`)
+    toast.success(`${product.name} — ${t('addedToCart')}`)
   }
 
   return (
@@ -70,8 +75,8 @@ export default function ProductCard({ product }: { product: Product }) {
             sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
             loading="lazy"
           />
-          {hasPromo && <div className="badge-promo">-{discount}%</div>}
-          {product.is_new && !hasPromo && <div className="badge-new">Nouveau</div>}
+          {hasPromo && <div className="badge-promo">{t('promo')}</div>}
+          {product.is_new && !hasPromo && <div className="badge-new">{t('new')}</div>}
 
           {/* Quick-add overlay — revealed by .product-card:hover in globals.css */}
           <div className="product-card-overlay">
@@ -80,8 +85,8 @@ export default function ProductCard({ product }: { product: Product }) {
               className="w-full py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 bg-navy-700/90 hover:bg-navy-700 backdrop-blur-sm transition-colors"
             >
               {inCart
-                ? <><Check size={13} /> Dans le panier</>
-                : <><ShoppingCart size={13} /> Ajouter au panier</>
+                ? <><Check size={13} /> {t('inCart')}</>
+                : <><ShoppingCart size={13} /> {t('addToCart')}</>
               }
             </button>
           </div>
@@ -119,7 +124,7 @@ export default function ProductCard({ product }: { product: Product }) {
             </div>
             {hasPromo && (
               <span className="flex items-center gap-0.5 text-xs font-bold text-gold-600">
-                <Zap size={11} className="fill-current" />PROMO
+                <Zap size={11} className="fill-current" />{t('promo')}
               </span>
             )}
           </div>
@@ -128,7 +133,7 @@ export default function ProductCard({ product }: { product: Product }) {
             <div className="mt-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                Plus que {product.stock} !
+                {t('onlyLeft', { count: product.stock })}
               </span>
             </div>
           )}

@@ -18,6 +18,7 @@ interface Product {
   id: string; name: string; slug: string; description?: string
   price: number; promo_price?: number | null; images: string[]
   category?: string; stock: number; is_visible: boolean; is_new?: boolean
+  has_bundles?: boolean; bundles?: { name: string; price: number; quantity_trigger?: number | null }[]; extra_unit_price?: number | null
   created_at: string
 }
 interface Order {
@@ -185,7 +186,8 @@ export default function AdminPage() {
           <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
             {navItems.map(item => {
               const Icon = item.icon
-              return (
+
+  return (
                 <button key={item.id}
                   onClick={() => { setTab(item.id as any); setSidebarOpen(false) }}
                   className={`admin-nav-item ${tab === item.id ? 'admin-nav-active' : 'admin-nav-inactive'}`}>
@@ -275,7 +277,7 @@ function StatCard({ label, value, icon: Icon, gradient, sub }: {
 }
 
 // ─── Dashboard Tab ────────────────────────────────────────────
-function DashTab({ apiHeaders }: { apiHeaders: any }) {
+function DashTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [stats, setStats] = useState({ orders:0, pending:0, revenue:0, products:0 })
   const [recent, setRecent] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -356,7 +358,7 @@ function DashTab({ apiHeaders }: { apiHeaders: any }) {
 }
 
 // ─── Products Tab ─────────────────────────────────────────────
-function ProdTab({ apiHeaders }: { apiHeaders: any }) {
+function ProdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal]       = useState(0)
   const [page, setPage]         = useState(1)
@@ -537,8 +539,9 @@ function ProdTab({ apiHeaders }: { apiHeaders: any }) {
 
 // ─── Product Form Modal ───────────────────────────────────────
 function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
-  product: Product|null; apiHeaders:any; onClose:()=>void; onSaved:()=>void
+  product: Product|null; apiHeaders:Record<string, string>; onClose:()=>void; onSaved:()=>void
 }) {
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [form, setForm] = useState({
     name:        product?.name        || '',
     description: product?.description || '',
@@ -548,11 +551,41 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
     stock:       product?.stock?.toString()       || '0',
     is_visible:  product?.is_visible  !== false,
     is_new:      product?.is_new      || false,
+    has_bundles: product?.has_bundles || false,
+    has_addons: false,
+    bundles:     product?.bundles     || [],
+    extra_unit_price: product?.extra_unit_price ?? null,
+    addons: [] as { name: string; max_quantity: number; is_active: boolean; tiers: { min_quantity: number; price_per_unit: number }[] }[],
   })
   const [images, setImages]     = useState<string[]>(product?.images || [])
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving]     = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/categories', { headers: apiHeaders })
+      .then(r => r.json())
+      .then(data => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [apiHeaders])
+
+  useEffect(() => {
+    if (product?.id) {
+      fetch('/api/admin/product-addons?product_id=' + product.id, { headers: apiHeaders })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setForm(f => ({ ...f, addons: (data as any[]).map(a => ({
+            name: a.name,
+            max_quantity: a.max_quantity,
+            is_active: a.is_active !== false,
+            tiers: (a.tiers || []).map((t: any) => ({ min_quantity: t.min_quantity, price_per_unit: Number(t.price_per_unit) })),
+          })) }))
+          }
+        })
+        .catch(() => {})
+    }
+  }, [product?.id, apiHeaders])
 
   const uploadImage = async (file: File) => {
     setUploading(true)
@@ -595,6 +628,10 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
       stock:       Number(form.stock) || 0,
       is_visible:  form.is_visible,
       is_new:      form.is_new,
+      has_bundles: form.has_bundles,
+      bundles:     form.bundles,
+      extra_unit_price: form.extra_unit_price,
+      addons:      form.addons,
       images,
     }
 
@@ -615,7 +652,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-6 overflow-y-auto animate-fade-in">
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl animate-slide-up">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 rounded-t-3xl z-10">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 rounded-t-3xl">
           <h2 className="font-black text-slate-900 dark:text-white">
             {product ? 'Modifier le produit' : 'Ajouter un produit'}
           </h2>
@@ -679,8 +716,13 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Catégorie</label>
-              <input type="text" value={form.category} onChange={set('category')}
-                className="input-field" placeholder="Électronique, Mode..."/>
+              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                className="select-field">
+                <option value="">— Sans catégorie —</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">Stock</label>
@@ -694,16 +736,178 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
             {[
               { key: 'is_visible', label: 'Visible sur le site' },
               { key: 'is_new',     label: 'Badge "Nouveau"'     },
+              { key: 'has_bundles', label: 'Activer les bundles' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
                 <button type="button"
-                  onClick={() => setForm(f => ({ ...f, [key]: !(f as any)[key] }))}
+                  onClick={() => {
+                    const val = !(form as any)[key]
+                    setForm(f => ({ ...f, [key]: val }))
+                    if (key === 'has_addons' && !val) {
+                      setForm(f => ({ ...f, addons: [] }))
+                    }
+                  }}
                   className={`w-10 h-6 rounded-full relative transition-colors duration-200 ${(form as any)[key] ? 'bg-navy-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${(form as any)[key] ? 'translate-x-5' : 'translate-x-1'}`}/>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${(form as any)[key] ? 'left-5' : 'left-1'}`}/>
                 </button>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
               </label>
             ))}
+          </div>
+
+          {/* Bundles editor */}
+          {form.has_bundles && (
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Offres groupées</span>
+                <button type="button" onClick={() => setForm(f => ({ ...f, bundles: [...f.bundles, { name: '', price: 0, quantity_trigger: null }] }))}
+                  className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
+                  <Plus size={12}/> Ajouter un bundle
+                </button>
+              </div>
+              {(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[]).map((b, i) => (
+                <div key={i} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 font-medium">Nom</label>
+                    <input type="text" value={b.name} onChange={e => {
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      arr[i] = { ...arr[i], name: e.target.value }
+                      setForm(f => ({ ...f, bundles: arr }))
+                    }} className="input-field text-sm py-2" placeholder="Ex: +1 bouteille gaz"/>
+                  </div>
+                  <div className="w-28">
+                    <label className="text-[10px] text-slate-400 font-medium">Prix (DA)</label>
+                    <input type="number" value={b.price || ''} onChange={e => {
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      arr[i] = { ...arr[i], price: Number(e.target.value) }
+                      setForm(f => ({ ...f, bundles: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="3500"/>
+                  </div>
+                  <div className="w-20">
+                    <label className="text-[10px] text-slate-400 font-medium">Déclencheur qty</label>
+                    <input type="number" value={b.quantity_trigger ?? ''} onChange={e => {
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      arr[i] = { ...arr[i], quantity_trigger: e.target.value === '' ? null : Number(e.target.value) }
+                      setForm(f => ({ ...f, bundles: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="Auto"/>
+                  </div>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, bundles: (f.bundles as { name: string; price: number; quantity_trigger?: number | null }[]).filter((_, idx) => idx !== i) }))}
+                    className="w-9 h-9 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-red-500 transition-colors flex-shrink-0">
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+              {(form.bundles as { name: string; price: number }[]).length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-2">لا توجد عروض بعد. أضف عرضاً بالزر أعلاه.</p>
+              )}
+
+              {/* Extra unit price */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                <label className="text-[10px] text-slate-400 font-medium">Prix unité supplémentaire (DA)</label>
+                <input type="number" value={form.extra_unit_price ?? ''} onChange={e => setForm(f => ({ ...f, extra_unit_price: e.target.value === '' ? null : Number(e.target.value) }))}
+                  className="input-field text-sm py-2 mt-1" min="0" placeholder="Optionnel — ex: 2250"/>
+                <p className="text-[10px] text-slate-400 mt-1">Prix de chaque pièce au-delà du dernier déclencheur de bundle.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Ajouts optionnels */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Ajouts optionnels</span>
+                <button type="button"
+                  onClick={() => { setForm(f => ({ ...f, has_addons: !f.has_addons, addons: f.has_addons ? [] : f.addons })) }}
+                  className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${form.has_addons ? 'bg-navy-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${form.has_addons ? 'left-5' : 'left-1'}`}/>
+                </button>
+              </div>
+              {form.has_addons && (
+              <button type="button" onClick={() => setForm(f => ({ ...f, addons: [...f.addons, { name: '', max_quantity: 1, is_active: true, tiers: [{ min_quantity: 1, price_per_unit: 0 }] }] }))}
+                className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
+                <Plus size={12}/> Ajouter un ajout
+              </button>
+              )}
+            </div>
+            {form.has_addons && (<>
+              {form.addons.map((a, i) => (
+              <div key={i} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 font-medium">Nom</label>
+                    <input type="text" value={a.name} onChange={e => {
+                      const arr = [...form.addons]
+                      arr[i] = { ...arr[i], name: e.target.value }
+                      setForm(f => ({ ...f, addons: arr }))
+                    }} className="input-field text-sm py-2" placeholder="Ex: Bouteille GAZ"/>
+                  </div>
+                  <button type="button" onClick={() => {
+                    const arr = [...form.addons]
+                    arr[i] = { ...arr[i], is_active: !arr[i].is_active }
+                    setForm(f => ({ ...f, addons: arr }))
+                  }} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${a.is_active ? 'text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/20' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    {a.is_active ? <ToggleRight size={18}/> : <ToggleLeft size={18}/>}
+                  </button>
+                  <div className="w-20">
+                    <label className="text-[10px] text-slate-400 font-medium">Qty max</label>
+                    <input type="number" value={a.max_quantity || ''} onChange={e => {
+                      const arr = [...form.addons]
+                      arr[i] = { ...arr[i], max_quantity: Math.max(1, Number(e.target.value)) }
+                      setForm(f => ({ ...f, addons: arr }))
+                    }} className="input-field text-sm py-2" min="1" placeholder="5"/>
+                  </div>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, addons: f.addons.filter((_, idx) => idx !== i) }))}
+                    className="w-9 h-9 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-red-500 transition-colors flex-shrink-0">
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+                {/* Tiers */}
+                <div>
+                  <div className="text-[10px] text-slate-400 font-medium mb-1">Tarification</div>
+                  <div className="space-y-1.5">
+                    {a.tiers.map((t, ti) => (
+                      <div key={ti} className="flex gap-2 items-center">
+                        <div className="w-24">
+                          <input type="number" value={t.min_quantity || ''} onChange={e => {
+                            const arr = [...form.addons]
+                            arr[i] = { ...arr[i], tiers: arr[i].tiers.map((tt, tti) => tti === ti ? { ...tt, min_quantity: Math.max(1, Number(e.target.value)) } : tt) }
+                            setForm(f => ({ ...f, addons: arr }))
+                          }} className="input-field text-xs py-1.5" min="1" placeholder="Qte min"/>
+                        </div>
+                        <span className="text-xs text-slate-400">→</span>
+                        <div className="w-28">
+                          <input type="number" value={t.price_per_unit || ''} onChange={e => {
+                            const arr = [...form.addons]
+                            arr[i] = { ...arr[i], tiers: arr[i].tiers.map((tt, tti) => tti === ti ? { ...tt, price_per_unit: Number(e.target.value) } : tt) }
+                            setForm(f => ({ ...f, addons: arr }))
+                          }} className="input-field text-xs py-1.5" min="0" placeholder="Prix/u"/>
+                        </div>
+                        <button type="button" onClick={() => {
+                          const arr = [...form.addons]
+                          arr[i] = { ...arr[i], tiers: arr[i].tiers.filter((_, tti) => tti !== ti) }
+                          setForm(f => ({ ...f, addons: arr }))
+                        }} className="text-red-400 hover:text-red-600 transition-colors">
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => {
+                    const arr = [...form.addons]
+                    const lastTier = arr[i].tiers[arr[i].tiers.length - 1]
+                    const nextMin = lastTier ? lastTier.min_quantity + 1 : 1
+                    arr[i] = { ...arr[i], tiers: [...arr[i].tiers, { min_quantity: nextMin, price_per_unit: 0 }] }
+                    setForm(f => ({ ...f, addons: arr }))
+                  }} className="btn-ghost text-xs px-2 py-1 mt-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
+                    <Plus size={10}/> Ajouter un palier
+                  </button>
+                </div>
+              </div>
+            ))}
+            {form.addons.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-2">لا توجد إضافات بعد. أضف إضافة بالزر أعلاه.</p>
+            )}
+            </>)}
           </div>
 
           <div className="flex gap-3 pt-1">
@@ -719,7 +923,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
 }
 
 // ─── Orders Tab ───────────────────────────────────────────────
-function OrdTab({ apiHeaders }: { apiHeaders: any }) {
+function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [orders, setOrders]   = useState<Order[]>([])
   const [total, setTotal]     = useState(0)
   const [page, setPage]       = useState(1)
@@ -749,6 +953,20 @@ function OrdTab({ apiHeaders }: { apiHeaders: any }) {
     if (r.ok) {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o))
       toast.success('Mis à jour')
+    }
+  }
+
+  const deleteOrder = async (id: string) => {
+    if (!confirm('Supprimer cette commande définitivement ?')) return
+    const r = await fetch('/api/admin/orders', {
+      method: 'DELETE', headers: apiHeaders,
+      body: JSON.stringify({ id }),
+    })
+    if (r.ok) {
+      setOrders(prev => prev.filter(o => o.id !== id))
+      toast.success('Commande supprimée')
+    } else {
+      toast.error('Erreur lors de la suppression')
     }
   }
 
@@ -839,10 +1057,16 @@ function OrdTab({ apiHeaders }: { apiHeaders: any }) {
                         </select>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
-                          className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors mx-auto">
-                          {expanded === o.id ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
+                            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                            {expanded === o.id ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+                          </button>
+                          <button onClick={() => deleteOrder(o.id)}
+                            className="w-7 h-7 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                            <Trash2 size={13}/>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {expanded === o.id && (
@@ -890,12 +1114,13 @@ function OrdTab({ apiHeaders }: { apiHeaders: any }) {
 }
 
 // ─── Categories Tab ───────────────────────────────────────────
-function CatTab({ apiHeaders }: { apiHeaders: any }) {
+function CatTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [cats, setCats]   = useState<Category[]>([])
   const [name, setName]   = useState('')
   const [icon, setIcon]   = useState('📦')
+  const [iconInput, setIconInput] = useState('')
   const [saving, setSaving] = useState(false)
-  const EMOJIS = ['📦','👕','👟','💄','🏠','🔧','📱','💻','🎮','🍳','🌿','⚡','🛁','🎒','🧴','✨','🪴','🎁','🧸','💡','🔑','⌚','👜','🕶️','🏋️','🎵']
+  const EMOJIS = ['📦','👕','👟','💄','🏠','🔧','📱','💻','🎮','🍳','🌿','⚡','🛁','🎒','🧴','✨','🪴','🎁','🧸','💡','🔑','⌚','👜','🕶️','🏋️','🎵','📚','🎓','🧪','🔬','🩺','⚕️','💊','🏥','🎨','🖌️','🎭','🎪','🎤','🎧','🎷','🎸','🎺','🎻','🥁','🎲','♟️','🧩','🃏','🎯','🎳','🎽','🥋','🤿','🪂','🚴','🏆','🥇','🏅','🎖️','🏵️','💎','👑','💍','🔔','🎀','🧵','🧶','👗','👘','🥻','🩱','👙','🩲','🧤','🧣','👒','🎩','⛑️','👓','🥽','🌂','🧳','📷','📸','📹','🎥','📽️','💿','📀','💾','💽','🖥️','🖨️','⌨️','🖱️','🖲️','🕹️','🗄️','🗃️','📁','📂','📋','📌','📍','✂️','🔗','🧷','📎','🖇️']
 
   useEffect(() => {
     fetch('/api/admin/categories', { headers: apiHeaders })
@@ -939,6 +1164,10 @@ function CatTab({ apiHeaders }: { apiHeaders: any }) {
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs text-slate-400">Ou saisir un emoji :</span>
+              <input type="text" value={iconInput} onChange={e => { setIconInput(e.target.value); if (e.target.value) setIcon(e.target.value) }} maxLength={4} className="w-14 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 text-center text-lg outline-none" placeholder={icon} />
+            </div>
           </div>
           <div>
             <label className="label">Nom *</label>
@@ -979,7 +1208,7 @@ function CatTab({ apiHeaders }: { apiHeaders: any }) {
 }
 
 // ─── Promotions Tab ───────────────────────────────────────────
-function PromoTab({ apiHeaders }: { apiHeaders: any }) {
+function PromoTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [promos, setPromos] = useState<Promotion[]>([])
   const [form, setForm]     = useState({ label: '', discount_percent: '', starts_at: '', ends_at: '', is_active: true })
   const [saving, setSaving] = useState(false)
@@ -1056,7 +1285,7 @@ function PromoTab({ apiHeaders }: { apiHeaders: any }) {
             <button type="button"
               onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
               className={`w-10 h-6 rounded-full relative transition-colors duration-200 ${form.is_active ? 'bg-navy-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${form.is_active ? 'translate-x-5' : 'translate-x-1'}`}/>
+               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${form.is_active ? 'left-5' : 'left-1'}`}/>
             </button>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{form.is_active ? 'Active' : 'Inactive'}</span>
             <button type="submit" disabled={saving} className="ml-auto btn-primary text-sm px-5">
@@ -1101,8 +1330,9 @@ function PromoTab({ apiHeaders }: { apiHeaders: any }) {
 }
 
 // ─── Banners Tab ──────────────────────────────────────────────
-function BannerTab({ apiHeaders }: { apiHeaders: any }) {
+function BannerTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [banners, setBanners] = useState<Banner[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm]       = useState({ title:'', subtitle:'', button_text:'Explorer', link:'/', image_url:'', order_index:'0', is_active:true })
   const [saving, setSaving]   = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -1135,12 +1365,20 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
     e.preventDefault()
     if (!form.title.trim()) return
     setSaving(true)
+    const method = editingId ? 'PUT' : 'POST'
+    const body = editingId
+      ? { id: editingId, ...form, order_index: Number(form.order_index) }
+      : { ...form, order_index: Number(form.order_index) }
     const r = await fetch('/api/admin/banners', {
-      method: 'POST', headers: apiHeaders,
-      body: JSON.stringify({ ...form, order_index: Number(form.order_index) }),
+      method, headers: apiHeaders,
+      body: JSON.stringify(body),
     })
-    if (r.ok) { toast.success('Bannière créée !'); setForm({ title:'', subtitle:'', button_text:'Explorer', link:'/', image_url:'', order_index:'0', is_active:true }); load() }
-    else { const d = await r.json(); toast.error(d.error || 'Erreur') }
+    if (r.ok) {
+      toast.success(editingId ? 'Bannière modifiée !' : 'Bannière créée !')
+      setForm({ title:'', subtitle:'', button_text:'Explorer', link:'/', image_url:'', order_index:'0', is_active:true })
+      setEditingId(null)
+      load()
+    } else { const d = await r.json(); toast.error(d.error || 'Erreur') }
     setSaving(false)
   }
 
@@ -1158,6 +1396,17 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
     if (r.ok) { setBanners(prev => prev.map(x => x.id === b.id ? { ...x, is_active: !x.is_active } : x)); toast.success('Mis à jour') }
   }
 
+  const edit = (b: Banner) => {
+    setEditingId(b.id)
+    setForm({ title: b.title, subtitle: b.subtitle || '', button_text: b.button_text || 'Explorer', link: b.link || '/', image_url: b.image_url || '', order_index: String(b.order_index ?? 0), is_active: b.is_active })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setForm({ title:'', subtitle:'', button_text:'Explorer', link:'/', image_url:'', order_index:'0', is_active:true })
+  }
+
   const setF = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   return (
@@ -1165,7 +1414,7 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
       <h2 className="text-xl font-black text-slate-900 dark:text-white">Bannières homepage</h2>
 
       <div className="card p-5 space-y-4">
-        <h3 className="font-bold text-sm text-slate-800 dark:text-white">Nouvelle bannière</h3>
+        <h3 className="font-bold text-sm text-slate-800 dark:text-white">{editingId ? 'Modifier la bannière' : 'Nouvelle bannière'}</h3>
         <form onSubmit={add} className="space-y-4">
           {/* Image upload */}
           <div>
@@ -1211,15 +1460,22 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
                 <button type="button"
                   onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
                   className={`w-10 h-6 rounded-full relative transition-colors ${form.is_active ? 'bg-navy-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_active ? 'translate-x-5' : 'translate-x-1'}`}/>
+                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_active ? 'left-5' : 'left-1'}`}/>
                 </button>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Active</span>
               </label>
             </div>
           </div>
-          <button type="submit" disabled={saving} className="btn-primary text-sm w-full py-3">
-            {saving ? <><Loader2 size={14} className="animate-spin"/>Sauvegarde...</> : <><Plus size={14}/>Créer la bannière</>}
-          </button>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="btn-primary text-sm flex-1 py-3">
+              {saving ? <><Loader2 size={14} className="animate-spin"/>Sauvegarde...</> : editingId ? <><Edit2 size={14}/>Modifier la bannière</> : <><Plus size={14}/>Créer la bannière</>}
+            </button>
+            {editingId && (
+              <button type="button" onClick={cancelEdit} className="btn-ghost px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 text-sm">
+                <X size={14}/> Annuler
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -1241,6 +1497,9 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
                   {b.is_active ? 'Active' : 'Inactive'}
                 </span>
                 <div className="flex items-center gap-1">
+                  <button onClick={() => edit(b)} className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-navy-600 transition-colors">
+                    <Edit2 size={13}/>
+                  </button>
                   <button onClick={() => toggle(b)} className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-navy-600 transition-colors">
                     {b.is_active ? <ToggleRight size={15} className="text-emerald-500"/> : <ToggleLeft size={15}/>}
                   </button>
@@ -1256,8 +1515,17 @@ function BannerTab({ apiHeaders }: { apiHeaders: any }) {
   )
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="card p-5 space-y-4">
+      <h3 className="font-bold text-sm text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-3">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
 // ─── Settings Tab ─────────────────────────────────────────────
-function SettingsTab({ apiHeaders }: { apiHeaders: any }) {
+function SettingsTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [vals, setVals] = useState({
     delivery_home_price:   '400',
     delivery_office_price: '250',
@@ -1297,13 +1565,6 @@ function SettingsTab({ apiHeaders }: { apiHeaders: any }) {
 
   if (!loaded) return <div className="card p-8 skeleton h-64"/>
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="card p-5 space-y-4">
-      <h3 className="font-bold text-sm text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-3">{title}</h3>
-      {children}
-    </div>
-  )
-
   return (
     <div className="space-y-5 animate-fade-in max-w-xl">
       <h2 className="text-xl font-black text-slate-900 dark:text-white">Paramètres</h2>
@@ -1323,8 +1584,8 @@ function SettingsTab({ apiHeaders }: { apiHeaders: any }) {
 
       <Section title="💬 WhatsApp">
         <div>
-          <label className="label">Numéro WhatsApp <span className="text-slate-400 font-normal text-xs">(sans le +, ex: 213661234567)</span></label>
-          <input type="text" value={vals.whatsapp_number} onChange={set('whatsapp_number')} className="input-field" placeholder="213661234567"/>
+          <label className="label">Numéro WhatsApp <span className="text-slate-400 font-normal text-xs">(sans le +, ex: 213795653670)</span></label>
+          <input type="text" value={vals.whatsapp_number} onChange={set('whatsapp_number')} className="input-field" placeholder="213795653670"/>
         </div>
       </Section>
 

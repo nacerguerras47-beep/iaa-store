@@ -36,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { id, name, icon } = req.body
     if (!id) return res.status(400).json({ error: 'ID requis' })
 
-    const updates: any = { updated_at: new Date().toISOString() }
+    const updates: Record<string, string> = { updated_at: new Date().toISOString() }
     if (name) updates.name = name.trim()
     if (icon) updates.icon = icon
 

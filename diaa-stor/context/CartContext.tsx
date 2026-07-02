@@ -2,6 +2,13 @@ import React, {
   createContext, useContext, useState,
   useEffect, useCallback, useRef,
 } from 'react'
+import { computeBundleTotal } from '../lib/pricing'
+
+export interface BundleOption {
+  name: string
+  price: number
+  quantity_trigger?: number | null
+}
 
 export interface CartItem {
   id:          string
@@ -12,6 +19,13 @@ export interface CartItem {
   image:       string
   quantity:    number
   slug:        string
+  bundles?:    BundleOption[]
+  applied_bundle_idx?: number | null
+  base_name?:  string
+  base_price?: number
+  base_promo_price?: number | null
+  extra_unit_price?: number | null
+  addons?: { name: string; quantity: number; price_per_unit: number; total?: number }[]
 }
 
 interface CartContextType {
@@ -70,6 +84,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items])
 
   const addToCart = useCallback((item: Omit<CartItem, 'quantity'>, qty = 1) => {
+    const base_name = item.bundles && item.applied_bundle_idx != null
+      ? item.base_name ?? item.name
+      : item.name
+    const base_price = item.bundles && item.applied_bundle_idx != null
+      ? item.base_price ?? item.price
+      : item.price
+    const base_promo_price = item.bundles && item.applied_bundle_idx != null
+      ? (item.base_promo_price !== undefined ? item.base_promo_price : item.promo_price)
+      : item.promo_price
+
     setItems(prev => {
       const existing = prev.find(i => i.product_id === item.product_id)
       if (existing) {
@@ -79,7 +103,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             : i
         )
       }
-      return [...prev, { ...item, quantity: qty }]
+      return [...prev, {
+        ...item,
+        quantity: qty,
+        base_name,
+        base_price,
+        base_promo_price,
+        extra_unit_price: item.extra_unit_price ?? null,
+      }]
     })
   }, [])
 
@@ -93,7 +124,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return
     }
     setItems(prev =>
-      prev.map(i => i.product_id === product_id ? { ...i, quantity: qty } : i)
+      prev.map(i => {
+        if (i.product_id !== product_id) return i
+        const updated = { ...i, quantity: qty }
+        if (!updated.bundles || updated.bundles.length === 0) return updated
+
+        const currentBundle = updated.applied_bundle_idx != null ? updated.bundles[updated.applied_bundle_idx] : null
+        if (currentBundle && currentBundle.quantity_trigger == null) return updated
+
+        let bestIdx = -1, bestTrigger = -1
+        for (let i = 0; i < updated.bundles.length; i++) {
+          const b = updated.bundles[i]
+          if (b.quantity_trigger != null && qty >= b.quantity_trigger && b.quantity_trigger > bestTrigger) {
+            bestTrigger = b.quantity_trigger; bestIdx = i
+          }
+        }
+
+        if (bestIdx !== -1) {
+          const bundle = updated.bundles[bestIdx]
+          return {
+            ...updated,
+            applied_bundle_idx: bestIdx,
+            name: (updated.base_name || updated.name) + ' (' + bundle.name + ')',
+            price: updated.base_price || updated.price,
+            promo_price: updated.base_promo_price !== undefined ? updated.base_promo_price : updated.promo_price,
+          }
+        }
+
+        if (currentBundle && currentBundle.quantity_trigger != null) {
+          return {
+            ...updated,
+            applied_bundle_idx: null,
+            name: updated.base_name || updated.name,
+            price: updated.base_price || updated.price,
+            promo_price: updated.base_promo_price !== undefined ? updated.base_promo_price : updated.promo_price,
+          }
+        }
+
+        return updated
+      })
     )
   }, [removeFromCart])
 
@@ -104,9 +173,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [items]
   )
 
-  const count = items.reduce((s, i) => s + i.quantity, 0)
+  const count = items.length
   const total = items.reduce(
-    (s, i) => s + (i.promo_price != null && i.promo_price < i.price ? i.promo_price : i.price) * i.quantity,
+    (s, i) => {
+      const base = computeBundleTotal(i.quantity, i.base_price || i.price, i.base_promo_price ?? i.promo_price, i.bundles, i.extra_unit_price)
+      const addons = (i.addons || []).reduce((as, a) => as + (a.total ?? a.quantity * a.price_per_unit), 0)
+      return s + base + addons
+    },
     0
   )
 

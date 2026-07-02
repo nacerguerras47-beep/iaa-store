@@ -27,7 +27,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // POST — create product
   if (req.method === 'POST') {
-    const { name, description, price, promo_price, images, category, stock, is_visible, is_new } = req.body
+    const { name, description, price, promo_price, images, category, stock, is_visible, is_new, has_bundles, bundles, extra_unit_price, addons } = req.body
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Nom et prix sont requis' })
     }
@@ -51,18 +51,48 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         stock:       Number(stock) || 0,
         is_visible:  is_visible !== false,
         is_new:      Boolean(is_new),
+        has_bundles: Boolean(has_bundles),
+        bundles:     Array.isArray(bundles) ? bundles : [],
+        extra_unit_price: extra_unit_price != null ? Number(extra_unit_price) : null,
         slug,
       })
       .select()
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
+
+    // Save addons with tiers
+    if (Array.isArray(addons) && addons.length > 0) {
+      await Promise.all(addons.map(async (a: any) => {
+        const { data: addon, error } = await supabaseAdmin
+          .from('product_addons')
+          .insert({
+            product_id: data.id,
+            name: a.name,
+            max_quantity: Number(a.max_quantity) || 1,
+            is_active: a.is_active !== false,
+          })
+          .select()
+          .single()
+
+        if (!error && addon && Array.isArray(a.tiers) && a.tiers.length > 0) {
+          await supabaseAdmin.from('product_addon_tiers').insert(
+            a.tiers.map((t: any) => ({
+              addon_id: addon.id,
+              min_quantity: Number(t.min_quantity),
+              price_per_unit: Number(t.price_per_unit),
+            }))
+          )
+        }
+      }))
+    }
+
     return res.status(201).json(data)
   }
 
   // PUT — update product
   if (req.method === 'PUT') {
-    const { id, ...updates } = req.body
+    const { id, addons, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'ID requis' })
 
     // Sanitize numeric fields
@@ -80,6 +110,36 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
+
+    // Replace addons with tiers
+    if (Array.isArray(addons)) {
+      await supabaseAdmin.from('product_addons').delete().eq('product_id', id)
+      if (addons.length > 0) {
+        await Promise.all(addons.map(async (a: any) => {
+          const { data: addon } = await supabaseAdmin
+            .from('product_addons')
+            .insert({
+              product_id: id,
+              name: a.name,
+              max_quantity: Number(a.max_quantity) || 1,
+              is_active: a.is_active !== false,
+            })
+            .select()
+            .single()
+
+          if (addon && Array.isArray(a.tiers) && a.tiers.length > 0) {
+            await supabaseAdmin.from('product_addon_tiers').insert(
+              a.tiers.map((t: any) => ({
+                addon_id: addon.id,
+                min_quantity: Number(t.min_quantity),
+                price_per_unit: Number(t.price_per_unit),
+              }))
+            )
+          }
+        }))
+      }
+    }
+
     return res.json(data)
   }
 

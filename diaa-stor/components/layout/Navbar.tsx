@@ -1,23 +1,49 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
 import { useTheme } from 'next-themes'
 import {
   Sun, Moon, Menu, X, Search,
-  ShoppingCart, Globe, ChevronDown,
+  ShoppingCart, Globe, ChevronDown, MoreHorizontal,
 } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
+import { useTranslation } from 'next-i18next'
+import { supabase } from '../../lib/supabase'
+import { fetchActivePromotions, applyGlobalPromotions } from '../../lib/pricing'
 
 export default function Navbar() {
   const router                    = useRouter()
-  const { theme, setTheme }       = useTheme()
+  const { t } = useTranslation('common')
+   const { theme, setTheme }       = useTheme()
   const { count, clientReady }    = useCart()
   const [scrolled, setScrolled]   = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQ, setSearchQ]     = useState('')
   const [langOpen, setLangOpen]   = useState(false)
+  const [menuOpen, setMenuOpen]   = useState(false)
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchShow, setSearchShow]       = useState(false)
+  const [navSearchPos, setNavSearchPos]   = useState({ top: 0, left: 0, width: 0 })
+  const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const navSearchTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  const nav = (href: string) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    const hash = href.split('#')[1]
+    if (router.pathname === '/' && !hash) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else if (router.pathname === '/' && hash) {
+      const el = document.getElementById(hash)
+      if (el) el.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      router.push(href)
+    }
+  }
 
   /*
    * `mounted` guards two things that must not render on the server:
@@ -46,6 +72,69 @@ export default function Navbar() {
     const fn = () => setScrolled(window.scrollY > 24)
     window.addEventListener('scroll', fn, { passive: true })
     return () => window.removeEventListener('scroll', fn)
+  }, [])
+
+  // Debounce search input
+  const [debouncedQ, setDebouncedQ] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(searchQ), 300)
+    return () => clearTimeout(t)
+  }, [searchQ])
+
+  // Live search
+  useEffect(() => {
+    if (debouncedQ.length < 1) { setSearchResults([]); setSearchLoading(false); setSearchShow(false); return }
+    setSearchLoading(true)
+    setSearchShow(true)
+    const timer = setTimeout(async () => {
+      const [promotions, { data }] = await Promise.all([
+        fetchActivePromotions(supabase),
+        supabase
+          .from('products')
+          .select('id, name, slug, price, promo_price, images')
+          .or(`name.ilike.%${debouncedQ}%,description.ilike.%${debouncedQ}%`)
+          .eq('is_visible', true)
+          .limit(8),
+      ])
+      setSearchResults(applyGlobalPromotions(data || [], promotions))
+      setSearchLoading(false)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [debouncedQ])
+
+  // Update portal position
+  useEffect(() => {
+    if (searchShow) {
+      const el = searchInputRef.current
+      if (el) {
+        const r = el.getBoundingClientRect()
+        setNavSearchPos({ top: r.bottom + 4, left: r.left, width: r.width })
+      }
+    }
+  }, [searchShow])
+
+  // Close results on scroll/resize
+  useEffect(() => {
+    if (!searchOpen) return
+    const fn = () => { setSearchShow(false); setSearchResults([]); setSearchOpen(false); (document.activeElement as HTMLElement)?.blur() }
+    window.addEventListener('scroll', fn, true)
+    window.addEventListener('resize', fn)
+    return () => {
+      window.removeEventListener('scroll', fn, true)
+      window.removeEventListener('resize', fn)
+    }
+  }, [searchOpen])
+
+  // Click outside to close results
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchResults([])
+        setSearchShow(false)
+      }
+    }
+    document.addEventListener('click', fn)
+    return () => document.removeEventListener('click', fn)
   }, [])
 
   const isHome   = router.pathname === '/'
@@ -88,7 +177,7 @@ export default function Navbar() {
                   src="/logo.png"
                   alt="Diaa Store"
                   fill
-                  className="object-contain"
+                  className="object-contain rounded-xl"
                   priority
                 />
               </div>
@@ -105,17 +194,18 @@ export default function Navbar() {
             {/* ── Desktop nav links ─────────────────────────── */}
             <div className="hidden md:flex items-center gap-1">
               {[
-                { href: '/',                    label: 'Accueil'    },
-                { href: '/?section=categories', label: 'Catégories' },
-                { href: '/?section=promotions', label: 'Promotions' },
-              ].map(link => (
-                <Link
+                 { href: '/', label: t('home') },
+                 { href: '/#categories', label: t('categories') },
+                 { href: '/#promotions', label: t('promotions') }
+               ]	.map(link => (
+                <a
                   key={link.href}
                   href={link.href}
+                  onClick={nav(link.href)}
                   className={`px-4 py-2 rounded-xl text-sm font-semibold hover:bg-white/10 transition-all ${textClass}`}
                 >
                   {link.label}
-                </Link>
+                </a>
               ))}
             </div>
 
@@ -125,7 +215,7 @@ export default function Navbar() {
               {/* Search */}
               <button
                 onClick={() => setSearchOpen(s => !s)}
-                className={`btn-ghost p-2.5 rounded-xl ${textClass}`}
+                className={`btn-ghost p-2.5 rounded-xl outline-none focus:outline-none focus:ring-0 ${textClass}`}
                 aria-label="Rechercher"
               >
                 <Search size={18} />
@@ -201,6 +291,29 @@ export default function Navbar() {
                 </button>
               )}
 
+              {/* Three-dots menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen(s => !s)}
+                  className={`btn-ghost p-2.5 rounded-xl ${textClass}`}
+                  aria-label="Plus d'options"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                {menuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                    <div className="absolute top-full right-0 mt-2 w-44 card py-1 z-50 animate-fade-in">
+                      <Link href="/admin" target="_blank"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                        ⚙️ لوحة التحكم
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+
               {/* Mobile hamburger */}
               <button
                 onClick={() => setMobileOpen(s => !s)}
@@ -214,22 +327,36 @@ export default function Navbar() {
 
           {/* ── Inline search bar ─────────────────────────── */}
           {searchOpen && (
-            <div className="pb-3 animate-slide-up">
+            <div className="pb-3 animate-slide-up" ref={searchRef}
+              onMouseLeave={() => {
+                navSearchTimer.current = setTimeout(() => {
+                  setSearchShow(false)
+                  setSearchResults([])
+                  setSearchOpen(false)
+                  ;(document.activeElement as HTMLElement)?.blur()
+                }, 300)
+              }}
+              onMouseEnter={() => clearTimeout(navSearchTimer.current)}
+            >
               <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  value={searchQ}
-                  onChange={e => setSearchQ(e.target.value)}
-                  placeholder="Rechercher un produit..."
-                  className="input-field flex-1"
-                />
+                <div className="relative flex-1">
+                  <input
+                    ref={searchInputRef}
+                    autoFocus
+                    type="text"
+                    value={searchQ}
+                    onChange={e => setSearchQ(e.target.value)}
+                    placeholder="Rechercher un produit..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 transition-all duration-200 text-sm outline-none"
+                    style={{ outline: 'none', boxShadow: 'none' }}
+                  />
+                </div>
                 <button type="submit" className="btn-primary px-5 py-2.5">
                   <Search size={16} />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSearchOpen(false)}
+                  onClick={() => { setSearchOpen(false); setSearchResults([]); setSearchShow(false) }}
                   className="btn-ghost px-3 rounded-xl border border-slate-200 dark:border-slate-600"
                 >
                   <X size={16} />
@@ -243,29 +370,27 @@ export default function Navbar() {
         {mobileOpen && (
           <div className="md:hidden bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 animate-slide-up">
             <div className="px-4 py-3 space-y-1">
-              {[
-                { href: '/',                    label: 'Accueil'    },
-                { href: '/?section=categories', label: 'Catégories' },
-                { href: '/?section=promotions', label: 'Promotions' },
-                /*
-                 * "Panier (N)" — the count part is only shown after clientReady
-                 * to avoid the server rendering "Panier (0)" while the client
-                 * renders "Panier (3)" on the first paint, triggering error #418.
-                 */
-                {
-                  href:  '/cart',
-                  label: clientReady && count > 0 ? `Panier (${count})` : 'Panier',
-                },
-              ].map(link => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="block px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
+                {[
+                  { href: '/', label: t('home') },
+                  { href: '/#categories', label: t('categories') },
+                  { href: '/#promotions', label: t('promotions') },
+                  {
+                    href: '/cart',
+                    label:
+                      clientReady && count > 0
+                        ? `${t('cart')} (${count})`
+                        : t('cart'),
+                  },
+                ].map(link => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={(e) => { setMobileOpen(false); nav(link.href)(e) }}
+                    className="block w-full text-left px-4 py-3 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                ))}
 
               {/* Language switcher in mobile menu */}
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
@@ -290,6 +415,63 @@ export default function Navbar() {
 
       {/* Spacer — only on non-home pages where the navbar is solid */}
       <div className={isHome ? '' : 'h-16'} />
+
+      {/* Navbar search portal — renders outside navbar container */}
+      {mounted && searchShow && createPortal(
+        <div
+          style={{ position: 'fixed', top: navSearchPos.top, left: navSearchPos.left, width: navSearchPos.width }}
+          className="z-[9999]"
+          onMouseEnter={() => clearTimeout(navSearchTimer.current)}
+          onMouseLeave={() => {
+            navSearchTimer.current = setTimeout(() => {
+              setSearchShow(false)
+              setSearchResults([])
+              setSearchOpen(false)
+              ;(document.activeElement as HTMLElement)?.blur()
+            }, 300)
+          }}
+        >
+          {searchLoading ? (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 text-center text-sm text-slate-400">
+              Recherche...
+            </div>
+          ) : searchResults.length > 0 ? (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-80 overflow-y-auto">
+              {searchResults.map(p => (
+                <Link
+                  key={p.id}
+                  href={`/product/${p.slug}`}
+                  onClick={() => { setSearchOpen(false); setSearchQ(''); setSearchResults([]); setSearchShow(false) }}
+                  className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-700 last:border-0"
+                >
+                  <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
+                    {p.images?.[0] ? (
+                      <Image src={p.images[0]} alt={p.name} fill className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-base">📦</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 dark:text-white truncate">{p.name}</div>
+                    <div className="text-xs font-bold text-gold-600 dark:text-gold-400">
+                      {p.promo_price && p.promo_price < p.price ? (
+                        <><span>{Number(p.promo_price).toLocaleString('fr-FR')} DA</span><span className="text-slate-400 line-through ml-1.5 font-normal">{Number(p.price).toLocaleString('fr-FR')} DA</span></>
+                      ) : (
+                        <>{Number(p.price).toLocaleString('fr-FR')} DA</>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 text-center text-sm text-slate-400">
+              Aucun produit trouvé
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
     </>
   )
 }
