@@ -29,6 +29,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: `Champs manquants: ${missing.join(', ')}` })
   }
 
+  if (String(last_name).trim().length < 2 || String(first_name).trim().length < 2) {
+    return res.status(400).json({ error: 'Nom et prénom doivent contenir au moins 2 caractères' })
+  }
+
+  if (String(wilaya).trim().length < 2 || String(commune).trim().length < 2) {
+    return res.status(400).json({ error: 'Wilaya et commune doivent contenir au moins 2 caractères' })
+  }
+
   if (!/^(05|06|07)\d{8}$/.test(String(phone).trim())) {
     return res.status(400).json({ error: 'Numéro de téléphone invalide (10 chiffres, commence par 05, 06 ou 07)' })
   }

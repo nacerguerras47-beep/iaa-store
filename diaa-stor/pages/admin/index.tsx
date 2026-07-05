@@ -86,10 +86,18 @@ export default function AdminPage() {
     e.preventDefault()
     setLogging(true); setPwErr('')
     try {
-      const r = await fetch('/api/admin/products?limit=1', {
-        headers: { Authorization: `Bearer ${pw}` }
+      const r = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
       })
+      if (r.status === 429) {
+        const d = await r.json()
+        setPwErr(d.error || 'Trop de tentatives. Réessayez plus tard.')
+        return
+      }
       if (r.status === 401) { setPwErr('Mot de passe incorrect'); return }
+      if (!r.ok) { setPwErr('Erreur serveur'); return }
       setToken(pw); setAuthed(true)
       localStorage.setItem('ds_admin_token', pw)
     } catch { setPwErr('Erreur réseau') } finally { setLogging(false) }
