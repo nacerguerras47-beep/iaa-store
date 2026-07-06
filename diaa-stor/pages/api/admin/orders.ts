@@ -44,6 +44,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Statut invalide' })
     }
 
+    // Fetch current order to detect status transition for stock management
+    const { data: currentOrder, error: fetchErr } = await supabaseAdmin
+      .from('orders')
+      .select('id, status, product_id, quantity')
+      .eq('id', id)
+      .single()
+
+    if (fetchErr) return res.status(500).json({ error: fetchErr.message })
+
+    const prevStatus = currentOrder?.status
+
     const updates: Record<string, string | number | null> = { updated_at: new Date().toISOString() }
     if (status  !== undefined) updates.status = String(status)
     if (nombre  !== undefined) updates.nombre = nombre === '' || nombre === null ? null : Number(nombre)
@@ -56,6 +67,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
+
+    // ── Stock management on status transition ──
+    if (status !== undefined && status !== prevStatus && currentOrder?.product_id) {
+      const qty = currentOrder.quantity || 0
+
+      if (status === 'confirmed' && prevStatus !== 'confirmed') {
+        const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', {
+          pid: currentOrder.product_id,
+          qty,
+        })
+        if (stockErr) console.error('Stock decrement failed:', stockErr.message)
+      } else if (status === 'cancelled' && prevStatus === 'confirmed') {
+        const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', {
+          pid: currentOrder.product_id,
+          qty,
+        })
+        if (stockErr) console.error('Stock restore failed:', stockErr.message)
+      }
+    }
 
     // Sync nombre change to Google Sheets (column H)
     if (nombre !== undefined && data?.order_number) {
