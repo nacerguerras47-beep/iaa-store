@@ -122,6 +122,7 @@ const onWilayaChange = (code: string) => {
             unit_price: item.quantity > 0 ? Math.round(itemTotal / item.quantity) : item.price,
             delivery_price: 0,
             total_price: itemTotal,
+            variant_name: item.variant_name || undefined,
           }
         }),
       ]

@@ -13,7 +13,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     let q = supabaseAdmin
       .from('products')
-      .select('*', { count: 'exact' })
+      .select('*, variants:product_variants(*)', { count: 'exact' })
 
     if (search)   q = q.ilike('name', `%${search}%`)
     if (category && category !== 'all') q = q.eq('category', category)
@@ -27,7 +27,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // POST — create product
   if (req.method === 'POST') {
-    const { name, description, price, promo_price, images, category, stock, is_visible, is_new, has_bundles, bundles, extra_unit_price, addons } = req.body
+    const { name, description, price, promo_price, images, category, stock, is_visible, is_new, has_bundles, bundles, extra_unit_price, addons, variants } = req.body
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Nom et prix sont requis' })
     }
@@ -87,12 +87,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }))
     }
 
+    // Save variants
+    if (Array.isArray(variants) && variants.length > 0) {
+      await supabaseAdmin.from('product_variants').insert(
+        variants.map((v: any, i: number) => ({
+          product_id:  data.id,
+          name:        String(v.name).trim(),
+          price:       Number(v.price),
+          promo_price: v.promo_price ? Number(v.promo_price) : null,
+          stock:       Number(v.stock) || 0,
+          is_active:   v.is_active !== false,
+          sort_order:  i,
+        }))
+      )
+    }
+
     return res.status(201).json(data)
   }
 
   // PUT — update product
   if (req.method === 'PUT') {
-    const { id, addons, ...updates } = req.body
+    const { id, addons, variants, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'ID requis' })
 
     // Sanitize numeric fields
@@ -137,6 +152,24 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             )
           }
         }))
+      }
+    }
+
+    // Replace variants
+    if (Array.isArray(variants)) {
+      await supabaseAdmin.from('product_variants').delete().eq('product_id', id)
+      if (variants.length > 0) {
+        await supabaseAdmin.from('product_variants').insert(
+          variants.map((v: any, i: number) => ({
+            product_id:  id,
+            name:        String(v.name).trim(),
+            price:       Number(v.price),
+            promo_price: v.promo_price ? Number(v.promo_price) : null,
+            stock:       Number(v.stock) || 0,
+            is_active:   v.is_active !== false,
+            sort_order:  i,
+          }))
+        )
       }
     }
 

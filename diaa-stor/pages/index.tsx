@@ -615,7 +615,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale, query }) 
       promotions,
     ] = await Promise.all([
       (async () => {
-        let q = supabase.from('products').select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles,extra_unit_price').eq('is_visible', true)
+        let q = supabase.from('products').select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles,extra_unit_price,variants:product_variants(id,name,price,promo_price,stock,is_active)').eq('is_visible', true)
         if (searchQuery) q = q.ilike('name', `%${searchQuery}%`)
         if (catQuery)    q = q.eq('category', catQuery)
         return q.order('created_at', { ascending: false }).limit(24)

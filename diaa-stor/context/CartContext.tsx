@@ -26,6 +26,7 @@ export interface CartItem {
   base_promo_price?: number | null
   extra_unit_price?: number | null
   addons?: { name: string; quantity: number; price_per_unit: number; total?: number }[]
+  variant_name?: string
 }
 
 interface CartContextType {

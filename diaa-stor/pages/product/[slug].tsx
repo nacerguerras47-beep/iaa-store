@@ -12,7 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { computeAddonTotal, fetchActivePromotions, applyGlobalPromotions } from '../../lib/pricing'
 import { useCart } from '../../context/CartContext'
 
-interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{name:string;price:number;quantity_trigger?:number|null}[]; extra_unit_price?:number|null }
+interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{name:string;price:number;quantity_trigger?:number|null}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;stock:number;is_active:boolean}[] }
 /**
  * fmt — always passes 'fr-FR' explicitly to toLocaleString.
  * Without an explicit locale, Node.js (Netlify build/SSR) defaults to
@@ -41,7 +41,14 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const bundles = product.has_bundles && product.bundles?.length ? product.bundles : null
   const selectedBundle = bundles && selectedBundleIdx !== null ? bundles[selectedBundleIdx] : null
   const bundlePrice = selectedBundle?.price ?? null
-  const displayPrice = bundlePrice ?? (hasPromo ? product.promo_price! : product.price)
+
+  const activeVariants = (product.variants || []).filter(v => v.is_active)
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null)
+  const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
+  const variantPrice = selectedVariant?.promo_price ?? selectedVariant?.price ?? null
+  const variantStock = selectedVariant?.stock ?? null
+
+  const displayPrice = bundlePrice ?? variantPrice ?? (hasPromo ? product.promo_price! : product.price)
   const addonsTotal = addons.reduce((s, a) => {
     const { total } = computeAddonTotal(a.tiers, addonQtys[a.id] || 0)
     return s + total
@@ -55,12 +62,13 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       const { price_per_unit, total } = computeAddonTotal(a.tiers, addonQtys[a.id])
       return { name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
     })
+    const vName = selectedVariant?.name || undefined
     addToCart({
-      id: `${product.id}-cart`,
+      id: `${product.id}-cart${vName ? '-' + vName : ''}`,
       product_id: product.id,
       name: selectedBundle ? `${product.name} (${selectedBundle.name})` : product.name,
-      price: bundlePrice ?? product.price,
-      promo_price: bundlePrice ? null : product.promo_price,
+      price: bundlePrice ?? variantPrice ?? product.price,
+      promo_price: bundlePrice ? null : (variantPrice ? (selectedVariant?.promo_price || null) : product.promo_price),
       image: product.images?.[0] || '/placeholder.jpg',
       slug: product.slug || product.id,
       bundles: bundles ?? undefined,
@@ -70,6 +78,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       base_promo_price: product.promo_price,
       extra_unit_price: product.extra_unit_price,
       addons: selectedAddons,
+      variant_name: vName,
     }, qty)
     toast.success(t('addedToCart'))
   }
@@ -219,13 +228,62 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
 
               {/* Stock indicator */}
               <div className="flex items-center gap-2 mb-5">
-                  {product.stock > 0 ? (
+                {selectedVariant ? (
+                  selectedVariant.stock > 0 ? (
+                    <><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{t('inStock')} {selectedVariant.stock <= 5 && `— ${t('onlyLeft', { count: selectedVariant.stock })}`}</span></>
+                  ) : (
+                    <><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-xs font-semibold text-red-500">{t('outOfStock')}</span></>
+                  )
+                ) : product.stock > 0 ? (
                   <><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{t('inStock')} {product.stock <= 5 && `— ${t('onlyLeft', { count: product.stock })}`}</span></>
                 ) : (
                   <><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-xs font-semibold text-red-500">{t('outOfStock')}</span></>
                 )}
               </div>
+
+              {/* Variants */}
+              {activeVariants.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t('variantsTitle') || 'Variantes'}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {activeVariants.map((v, i) => (
+                      <button key={i} type="button" onClick={() => {
+                        setSelectedVariantIdx(selectedVariantIdx === i ? null : i)
+                        setQty(1)
+                      }}
+                        className={`w-full flex flex-col p-3 rounded-xl border-2 transition-all ${
+                          selectedVariantIdx === i
+                            ? 'border-navy-600 bg-navy-50 dark:bg-navy-900/30 dark:border-navy-400'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedVariantIdx === i ? 'border-navy-600 dark:border-navy-400' : 'border-slate-300'
+                          }`}>
+                            {selectedVariantIdx === i && <div className="w-2 h-2 rounded-full bg-navy-600 dark:bg-navy-400"/>}
+                          </div>
+                          <span className="text-sm font-medium text-slate-800 dark:text-white">{v.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 ml-6">
+                          {v.promo_price ? (
+                            <>
+                              <span className="text-xs font-black text-gold-600">{fmt(v.promo_price)} DA</span>
+                              <span className="text-[10px] text-slate-400 line-through">{fmt(v.price)} DA</span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-300">{fmt(v.price)} DA</span>
+                          )}
+                          {v.stock <= 0 && (
+                            <span className="text-[10px] text-red-500 font-semibold">{t('outOfStock')}</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Bundles */}
               {bundles && (
@@ -390,7 +448,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, locale })
 
   const { data: product, error } = await supabase
     .from('products')
-    .select('*')
+    .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active)')
     .eq('slug', slug)
     .eq('is_visible', true)
     .single()

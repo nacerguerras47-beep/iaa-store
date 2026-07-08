@@ -19,6 +19,7 @@ interface Product {
   price: number; promo_price?: number | null; images: string[]
   category?: string; stock: number; is_visible: boolean; is_new?: boolean
   has_bundles?: boolean; bundles?: { name: string; price: number; quantity_trigger?: number | null }[]; extra_unit_price?: number | null
+  variants?: { id: string; name: string; price: number; promo_price?: number | null; stock: number; is_active: boolean }[]
   created_at: string
 }
 interface Order {
@@ -27,6 +28,7 @@ interface Order {
   last_name: string; first_name: string; phone: string
   wilaya: string; commune: string; address: string
   delivery_type: string; status: string; nombre?: number | null
+  variant_name?: string | null
   created_at: string
 }
 interface Category { id: string; name: string; icon: string; slug: string }
@@ -564,6 +566,14 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
     bundles:     product?.bundles     || [],
     extra_unit_price: product?.extra_unit_price ?? null,
     addons: [] as { name: string; max_quantity: number; is_active: boolean; tiers: { min_quantity: number; price_per_unit: number }[] }[],
+    has_variants: product?.variants && product.variants.length > 0 ? true : false,
+    variants: (product?.variants || []).map((v: any) => ({
+      name: v.name || '',
+      price: v.price?.toString() || '',
+      promo_price: v.promo_price?.toString() || '',
+      stock: v.stock?.toString() || '0',
+      is_active: v.is_active !== false,
+    })),
   })
   const [images, setImages]     = useState<string[]>(product?.images || [])
   const [uploading, setUploading] = useState(false)
@@ -640,6 +650,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
       bundles:     form.bundles,
       extra_unit_price: form.extra_unit_price,
       addons:      form.addons,
+      variants:    form.has_variants ? form.variants : [],
       images,
     }
 
@@ -918,6 +929,82 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
             </>)}
           </div>
 
+          {/* Variants */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Variantes</span>
+                <button type="button"
+                  onClick={() => { setForm(f => ({ ...f, has_variants: !f.has_variants, variants: f.has_variants ? [] : f.variants })) }}
+                  className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${form.has_variants ? 'bg-navy-600' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${form.has_variants ? 'left-5' : 'left-1'}`}/>
+                </button>
+              </div>
+              {form.has_variants && (
+              <button type="button" onClick={() => setForm(f => ({ ...f, variants: [...f.variants, { name: '', price: '', promo_price: '', stock: '0', is_active: true }] }))}
+                className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
+                <Plus size={12}/> Ajouter une variante
+              </button>
+              )}
+            </div>
+            {form.has_variants && (<>
+              {form.variants.map((v: any, i: number) => (
+              <div key={i} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 font-medium">Nom</label>
+                    <input type="text" value={v.name} onChange={e => {
+                      const arr = [...form.variants]
+                      arr[i] = { ...arr[i], name: e.target.value }
+                      setForm(f => ({ ...f, variants: arr }))
+                    }} className="input-field text-sm py-2" placeholder="Ex: 5 mètres"/>
+                  </div>
+                  <button type="button" onClick={() => {
+                    const arr = [...form.variants]
+                    arr[i] = { ...arr[i], is_active: !arr[i].is_active }
+                    setForm(f => ({ ...f, variants: arr }))
+                  }} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${v.is_active ? 'text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/20' : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    {v.is_active ? <ToggleRight size={18}/> : <ToggleLeft size={18}/>}
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, variants: f.variants.filter((_: any, idx: number) => idx !== i) }))}
+                    className="w-9 h-9 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-red-500 transition-colors flex-shrink-0">
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium">Prix (DA)</label>
+                    <input type="number" value={v.price} onChange={e => {
+                      const arr = [...form.variants]
+                      arr[i] = { ...arr[i], price: e.target.value }
+                      setForm(f => ({ ...f, variants: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="2500"/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium">Prix promo (DA)</label>
+                    <input type="number" value={v.promo_price} onChange={e => {
+                      const arr = [...form.variants]
+                      arr[i] = { ...arr[i], promo_price: e.target.value }
+                      setForm(f => ({ ...f, variants: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="Optionnel"/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium">Stock</label>
+                    <input type="number" value={v.stock} onChange={e => {
+                      const arr = [...form.variants]
+                      arr[i] = { ...arr[i], stock: Math.max(0, Number(e.target.value)).toString() }
+                      setForm(f => ({ ...f, variants: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="0"/>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {form.variants.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-2">لا توجد متغيرات بعد. أضف متغيراً بالزر أعلاه.</p>
+            )}
+            </>)}
+          </div>
+
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 btn-outline py-3">Annuler</button>
             <button type="submit" disabled={saving} className="flex-1 btn-primary py-3">
@@ -1038,6 +1125,7 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <div className="text-xs text-slate-600 dark:text-slate-300 truncate max-w-[150px]">{o.product_name}</div>
+                        {o.variant_name && <div className="text-[10px] text-slate-400">{o.variant_name}</div>}
                         <div className="text-[10px] text-slate-400">×{o.quantity}</div>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
@@ -1083,6 +1171,7 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Adresse</span><span className="text-slate-700 dark:text-slate-200">{o.address}</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Commune</span><span className="text-slate-700 dark:text-slate-200">{o.commune}</span></div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Variante</span><span className="text-slate-700 dark:text-slate-200">{o.variant_name || '—'}</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Livraison</span><span className="text-slate-700 dark:text-slate-200">{(o.delivery_price ? fmt(o.delivery_price) : '0')} DA</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Prix unitaire</span><span className="text-slate-700 dark:text-slate-200">{(o.unit_price ? fmt(o.unit_price) : '0')} DA</span></div>
                           </div>

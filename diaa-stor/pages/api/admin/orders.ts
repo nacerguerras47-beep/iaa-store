@@ -47,7 +47,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Fetch current order to detect status transition for stock management
     const { data: currentOrder, error: fetchErr } = await supabaseAdmin
       .from('orders')
-      .select('id, status, product_id, quantity')
+      .select('id, status, product_id, quantity, variant_name')
       .eq('id', id)
       .single()
 
@@ -73,17 +73,52 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const qty = currentOrder.quantity || 0
 
       if (status === 'confirmed' && prevStatus !== 'confirmed') {
-        const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', {
-          pid: currentOrder.product_id,
-          qty,
-        })
-        if (stockErr) console.error('Stock decrement failed:', stockErr.message)
+        if (currentOrder.variant_name) {
+          // Find variant by name on the product and decrement its stock
+          const { data: variant } = await supabaseAdmin
+            .from('product_variants')
+            .select('id')
+            .eq('product_id', currentOrder.product_id)
+            .eq('name', currentOrder.variant_name)
+            .maybeSingle()
+
+          if (variant) {
+            const { error: vErr } = await supabaseAdmin.rpc('decrement_variant_stock', {
+              pid: variant.id,
+              qty,
+            })
+            if (vErr) console.error('Variant stock decrement failed:', vErr.message)
+          }
+        } else {
+          const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', {
+            pid: currentOrder.product_id,
+            qty,
+          })
+          if (stockErr) console.error('Stock decrement failed:', stockErr.message)
+        }
       } else if (status === 'cancelled' && prevStatus === 'confirmed') {
-        const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', {
-          pid: currentOrder.product_id,
-          qty,
-        })
-        if (stockErr) console.error('Stock restore failed:', stockErr.message)
+        if (currentOrder.variant_name) {
+          const { data: variant } = await supabaseAdmin
+            .from('product_variants')
+            .select('id')
+            .eq('product_id', currentOrder.product_id)
+            .eq('name', currentOrder.variant_name)
+            .maybeSingle()
+
+          if (variant) {
+            const { error: vErr } = await supabaseAdmin.rpc('increment_variant_stock', {
+              pid: variant.id,
+              qty,
+            })
+            if (vErr) console.error('Variant stock restore failed:', vErr.message)
+          }
+        } else {
+          const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', {
+            pid: currentOrder.product_id,
+            qty,
+          })
+          if (stockErr) console.error('Stock restore failed:', stockErr.message)
+        }
       }
     }
 

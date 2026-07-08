@@ -65,6 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       commune:       String(commune).trim(),
       delivery_type: String(delivery_type),
       bundle_name:   item.bundle_name ? String(item.bundle_name).trim() : null,
+      variant_name:  item.variant_name ? String(item.variant_name).trim() : null,
       addons:        Array.isArray(item.addons) ? item.addons : [],
       status:        'pending',
       created_at:    now,

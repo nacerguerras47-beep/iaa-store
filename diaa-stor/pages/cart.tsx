@@ -99,6 +99,7 @@ export default function CartPage() {
             delivery_price: 0,
             total_price: itemGrandTotal,
             addons: item.addons || [],
+            variant_name: item.variant_name || undefined,
           }
         })
         const totalDelivery = deliveryCost
@@ -216,6 +217,7 @@ export default function CartPage() {
                       <Link href={`/product/${item.slug}`}>
                         <h3 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-2 hover:text-navy-600 dark:hover:text-gold-400 transition-colors">{item.name}</h3>
                       </Link>
+                      {item.variant_name && <div className="text-[11px] text-slate-500 font-medium mt-0.5">{item.variant_name}</div>}
                       {item.addons && item.addons.length > 0 && (
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {item.addons.map((a, i) => (
