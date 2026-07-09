@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
-import { updateOrderNombreInSheet } from '../../../lib/googleSheets'
+import { updateOrderNombreInSheet, updateOrderPriceInSheet } from '../../../lib/googleSheets'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
@@ -34,9 +34,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.json({ orders: data || [], total: count || 0, page: pageNum, pageSize })
   }
 
-  // PUT — update order (status, nombre)
+  // PUT — update order (status, nombre, prices)
   if (req.method === 'PUT') {
-    const { id, status, nombre } = req.body
+    const { id, status, nombre, unit_price, delivery_price, total_price } = req.body
     if (!id) return res.status(400).json({ error: 'ID requis' })
 
     const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
@@ -56,8 +56,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const prevStatus = currentOrder?.status
 
     const updates: Record<string, string | number | null> = { updated_at: new Date().toISOString() }
-    if (status  !== undefined) updates.status = String(status)
-    if (nombre  !== undefined) updates.nombre = nombre === '' || nombre === null ? null : Number(nombre)
+    if (status         !== undefined) updates.status        = String(status)
+    if (nombre         !== undefined) updates.nombre        = nombre === '' || nombre === null ? null : Number(nombre)
+    if (unit_price     !== undefined) updates.unit_price    = Number(unit_price)
+    if (delivery_price !== undefined) updates.delivery_price = Number(delivery_price)
+    if (total_price    !== undefined) updates.total_price   = Number(total_price)
 
     const { data, error } = await supabaseAdmin
       .from('orders')
@@ -125,6 +128,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Sync nombre change to Google Sheets (column H)
     if (nombre !== undefined && data?.order_number) {
       updateOrderNombreInSheet(data.order_number, updates.nombre as number | null)
+    }
+
+    // Sync price change to Google Sheets (columns M & N)
+    if (total_price !== undefined && delivery_price !== undefined && data?.order_number) {
+      const netPrice = Number(total_price) - Number(delivery_price)
+      updateOrderPriceInSheet(data.order_number, Number(total_price), netPrice)
     }
 
     return res.json(data)

@@ -1,7 +1,19 @@
 function doPost(e) {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Commandes')
     const data = JSON.parse(e.postData.contents)
+
+    // --- updatePrice: find row by order_number in column P, update M & N ---
+    if (data.action === 'updatePrice') {
+      return handleUpdatePrice(data)
+    }
+
+    // --- updateNombre: find row by order_number in column P, update H ---
+    if (data.action === 'updateNombre') {
+      return handleUpdateNombre(data)
+    }
+
+    // --- default: append new order row ---
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Commandes')
 
     const row = [
       new Date(data.created_at).toLocaleString('fr-FR'),  // A
@@ -18,7 +30,8 @@ function doPost(e) {
       data.quantity,        // L Psc
       data.total_price,     // M Total
       data.unit_price,      // N net
-      ''   // O Agence
+      '',   // O Agence
+      data.order_number || ''  // P Numéro commande
     ]
 
     const lastRow = sheet.getLastRow()
@@ -41,6 +54,44 @@ function doPost(e) {
   }
 }
 
+function handleUpdatePrice(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Commandes')
+  const lastRow = sheet.getLastRow()
+  const orderNumbers = sheet.getRange(2, 16, lastRow - 1).getValues() // Column P (16)
+
+  for (let i = 0; i < orderNumbers.length; i++) {
+    if (String(orderNumbers[i][0]).trim() === String(data.order_number).trim()) {
+      const rowIndex = i + 2
+      // Column M (13) = total_price, Column N (14) = net (total_price - delivery_price)
+      sheet.getRange(rowIndex, 13).setValue(data.total_price)
+      sheet.getRange(rowIndex, 14).setValue(data.net_price)
+      return ContentService.createTextOutput(JSON.stringify({success: true, row: rowIndex}))
+        .setMimeType(ContentService.MimeType.JSON)
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({error: 'Order number not found in column P'}))
+    .setMimeType(ContentService.MimeType.JSON)
+}
+
+function handleUpdateNombre(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Commandes')
+  const lastRow = sheet.getLastRow()
+  const orderNumbers = sheet.getRange(2, 16, lastRow - 1).getValues() // Column P (16)
+
+  for (let i = 0; i < orderNumbers.length; i++) {
+    if (String(orderNumbers[i][0]).trim() === String(data.order_number).trim()) {
+      const rowIndex = i + 2
+      sheet.getRange(rowIndex, 8).setValue(data.nombre) // Column H (8)
+      return ContentService.createTextOutput(JSON.stringify({success: true, row: rowIndex}))
+        .setMimeType(ContentService.MimeType.JSON)
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({error: 'Order number not found in column P'}))
+    .setMimeType(ContentService.MimeType.JSON)
+}
+
 function setupTrigger() {
   ScriptApp.newTrigger('sortByNombre')
     .forSpreadsheet(SpreadsheetApp.getActive())
@@ -58,7 +109,7 @@ function sortByNombre(e) {
   const lastRow = sheet.getLastRow()
   if (lastRow <= 2) return
 
-  const range = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn())
+  const range = sheet.getRange(2, 1, lastRow - 1, 16) // 16 columns A-P
   const values = range.getValues()
 
   const withNumber = values.filter(r => r[7] !== '' && r[7] !== null)

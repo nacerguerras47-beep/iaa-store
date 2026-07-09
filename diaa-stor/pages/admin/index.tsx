@@ -1026,6 +1026,7 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
   const [statusF, setStatusF] = useState('all')
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<string|null>(null)
+  const [priceEdits, setPriceEdits] = useState<Record<string, { unit_price: string; delivery_price: string }>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1048,6 +1049,24 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     if (r.ok) {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o))
       toast.success('Mis à jour')
+    }
+  }
+
+  const savePrice = async (id: string) => {
+    const edit = priceEdits[id]
+    if (!edit) return
+    const unitPrice = Number(edit.unit_price)
+    const deliveryPrice = Number(edit.delivery_price)
+    const order = orders.find(o => o.id === id)
+    if (!order) return
+    const totalPrice = Math.round(unitPrice * order.quantity + deliveryPrice)
+    const r = await fetch('/api/admin/orders', {
+      method: 'PUT', headers: apiHeaders,
+      body: JSON.stringify({ id, unit_price: unitPrice, delivery_price: deliveryPrice, total_price: totalPrice }),
+    })
+    if (r.ok) {
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, unit_price: unitPrice, delivery_price: deliveryPrice, total_price: totalPrice } : o))
+      toast.success('Prix mis à jour ✓')
     }
   }
 
@@ -1154,7 +1173,14 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => setExpanded(expanded === o.id ? null : o.id)}
+                          <button onClick={() => {
+                            if (expanded === o.id) {
+                              setExpanded(null)
+                            } else {
+                              setPriceEdits(prev => ({ ...prev, [o.id]: { unit_price: String(o.unit_price || ''), delivery_price: String(o.delivery_price || '') } }))
+                              setExpanded(o.id)
+                            }
+                          }}
                             className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
                             {expanded === o.id ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
                           </button>
@@ -1172,8 +1198,24 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Adresse</span><span className="text-slate-700 dark:text-slate-200">{o.address}</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Commune</span><span className="text-slate-700 dark:text-slate-200">{o.commune}</span></div>
                             <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Variante</span><span className="text-slate-700 dark:text-slate-200">{o.variant_name || '—'}</span></div>
-                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Livraison</span><span className="text-slate-700 dark:text-slate-200">{(o.delivery_price ? fmt(o.delivery_price) : '0')} DA</span></div>
-                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Prix unitaire</span><span className="text-slate-700 dark:text-slate-200">{(o.unit_price ? fmt(o.unit_price) : '0')} DA</span></div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Prix unitaire</span>
+                              <input type="number" value={priceEdits[o.id]?.unit_price ?? ''} onChange={e => setPriceEdits(prev => ({ ...prev, [o.id]: { ...prev[o.id], unit_price: e.target.value } }))}
+                                className="w-full input-field text-sm py-1.5 px-2" min="0" />
+                            </div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Livraison</span>
+                              <input type="number" value={priceEdits[o.id]?.delivery_price ?? ''} onChange={e => setPriceEdits(prev => ({ ...prev, [o.id]: { ...prev[o.id], delivery_price: e.target.value } }))}
+                                className="w-full input-field text-sm py-1.5 px-2" min="0" />
+                            </div>
+                            <div><span className="text-slate-400 block mb-0.5 font-semibold uppercase tracking-wide text-[10px]">Total (calculé)</span>
+                              <span className="text-slate-700 dark:text-slate-200 font-bold">
+                                {fmt(Math.round(Number(priceEdits[o.id]?.unit_price || 0) * o.quantity + Number(priceEdits[o.id]?.delivery_price || 0)))} DA
+                              </span>
+                            </div>
+                            <div className="flex items-end">
+                              <button onClick={() => savePrice(o.id)} className="btn-primary text-xs px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                <Check size={12}/> Enregistrer
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
