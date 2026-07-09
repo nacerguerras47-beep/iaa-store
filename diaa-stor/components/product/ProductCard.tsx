@@ -18,6 +18,7 @@ interface Product {
   has_bundles?: boolean
   bundles?:    { id?:string; name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null; variant_id?: string | null; is_active?: boolean }[]
   extra_unit_price?: number | null
+  variants?:   { stock: number; is_active: boolean }[]
 }
 
 /**
@@ -42,6 +43,9 @@ export default function ProductCard({ product }: { product: Product }) {
   const image  = product.images?.[0] || '/placeholder.jpg'
   const href   = `/product/${product.slug || product.id}`
   const inCart = isInCart(product.id)
+  const displayStock = product.variants?.length
+    ? product.variants.filter(v => v.is_active).reduce((s, v) => s + (v.stock || 0), 0)
+    : product.stock ?? 0
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -129,11 +133,11 @@ export default function ProductCard({ product }: { product: Product }) {
             )}
           </div>
 
-          {product.stock !== undefined && product.stock > 0 && product.stock <= 5 && (
+          {displayStock > 0 && displayStock <= 5 && (
             <div className="mt-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                {t('onlyLeft', { count: product.stock })}
+                {t('onlyLeft', { count: displayStock })}
               </span>
             </div>
           )}

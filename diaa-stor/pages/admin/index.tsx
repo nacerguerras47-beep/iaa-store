@@ -481,10 +481,16 @@ function ProdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${
-                          p.stock > 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : p.stock > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          (p.variants?.length ? p.variants.filter(v => v.is_active).reduce((s, v) => s + (v.stock || 0), 0) : p.stock) > 5
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : (p.variants?.length ? p.variants.filter(v => v.is_active).reduce((s, v) => s + (v.stock || 0), 0) : p.stock) > 0
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}>{p.stock}</span>
+                        }`}>{
+                          p.variants?.length
+                            ? p.variants.filter(v => v.is_active).reduce((s, v) => s + (v.stock || 0), 0)
+                            : p.stock
+                        }</span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button onClick={() => toggleVis(p)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
