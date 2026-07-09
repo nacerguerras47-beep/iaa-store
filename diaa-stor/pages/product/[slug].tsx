@@ -59,7 +59,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const currentTotal = selectedBundle && selectedBundle.quantity_trigger
     ? qty <= selectedBundle.quantity_trigger
       ? bundlePrice!
-      : bundlePrice! + (qty - selectedBundle.quantity_trigger) * (selectedVariant?.extra_unit_price ?? product.extra_unit_price ?? 0)
+      : bundlePrice! + (qty - selectedBundle.quantity_trigger) * (selectedVariant?.extra_unit_price ?? 0)
     : displayPrice * qty
   const addonsTotal = addons.reduce((s, a) => {
     const { total } = computeAddonTotal(a.tiers, addonQtys[a.id] || 0)
@@ -92,7 +92,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       base_name: product.name,
       base_price: product.price,
       base_promo_price: product.promo_price,
-      extra_unit_price: selectedVariant?.extra_unit_price ?? product.extra_unit_price,
+      extra_unit_price: selectedVariant?.extra_unit_price ?? undefined,
       addons: selectedAddons,
       variant_name: vName,
       variant_price: variantPrice ?? undefined,
@@ -457,7 +457,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                         setQty(1)
                       }
                     }}
-                    extraUnitPrice={selectedVariant?.extra_unit_price ?? product.extra_unit_price ?? null}
+                    extraUnitPrice={selectedVariant?.extra_unit_price ?? null}
                     addons={addons}
                     addonQtys={addonQtys}
                     variantPrice={variantPrice}
@@ -483,7 +483,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, locale })
   try {
     const { data: product, error } = await supabase
       .from('products')
-      .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active), bundles:product_bundles(*)')
+      .select('*, variants:product_variants(id, name, price, promo_price, extra_unit_price, stock, is_active), bundles:product_bundles(*)')
       .eq('slug', slug)
       .eq('is_visible', true)
       .single()
