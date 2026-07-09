@@ -117,7 +117,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           is_active:        true,
         }))
       )
-      if (bundleErr) console.error('Bundle insert error:', bundleErr)
+      if (bundleErr) {
+        console.error('Bundle insert error:', bundleErr)
+        return res.status(500).json({ error: 'Erreur lors de l\'enregistrement des bundles: ' + bundleErr.message })
+      }
     }
 
     return res.status(201).json(data)
@@ -195,7 +198,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Replace bundles in product_bundles table
     if (Array.isArray(bundles)) {
       const { error: delErr } = await supabaseAdmin.from('product_bundles').delete().eq('product_id', id)
-      if (delErr) console.error('Bundle delete error:', delErr)
+      if (delErr) {
+        console.error('Bundle delete error:', delErr)
+        return res.status(500).json({ error: 'Erreur lors de la suppression des bundles: ' + delErr.message })
+      }
       if (bundles.length > 0) {
         const { error: insErr } = await supabaseAdmin.from('product_bundles').insert(
           bundles.map((b: any, i: number) => ({
@@ -209,7 +215,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             is_active:        true,
           }))
         )
-        if (insErr) console.error('Bundle insert error:', insErr)
+        if (insErr) {
+          console.error('Bundle insert error:', insErr)
+          return res.status(500).json({ error: 'Erreur lors de l\'enregistrement des bundles: ' + insErr.message })
+        }
       }
     }
 
