@@ -69,11 +69,20 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, sel
   })
 
   const hasManualBundle = selectedBundle != null && bundles?.some(b => b.name === selectedBundle.name && b.quantity_trigger == null)
-  const productTotal = (extraUnitPrice != null && !hasManualBundle)
-    ? computeBundleTotal(qty, product.price, product.promo_price, bundles, extraUnitPrice, variantPrice)
-    : (selectedBundle
-        ? (variantPrice ? getBundlePrice(selectedBundle, variantPrice) : selectedBundle.price) * qty
-        : (variantPrice ? variantPrice : (product.promo_price && product.promo_price < product.price ? product.promo_price : product.price)) * qty)
+  const productTotal = (() => {
+    if (selectedBundle && selectedBundle.quantity_trigger) {
+      const bPrice = getBundlePrice(selectedBundle, variantPrice)
+      if (qty <= selectedBundle.quantity_trigger) {
+        return bPrice
+      }
+      return bPrice + (qty - selectedBundle.quantity_trigger) * (extraUnitPrice ?? 0)
+    }
+    if (selectedBundle) {
+      return getBundlePrice(selectedBundle, variantPrice) * qty
+    }
+    const unitPrice = variantPrice ?? (product.promo_price && product.promo_price < product.price ? product.promo_price : product.price)
+    return unitPrice * qty
+  })()
   const addonsTotal = addons.reduce((s, a) => {
     const { total } = computeAddonTotal(a.tiers, addonQtys[a.id] || 0)
     return s + total
