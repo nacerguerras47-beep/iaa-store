@@ -12,7 +12,7 @@ import { z } from 'zod'
 import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import { useCart } from '../context/CartContext'
-import { computeBundleTotal } from '../lib/pricing'
+import { computeBundleTotal, getBundlePrice } from '../lib/pricing'
 import { WILAYAS, getCommunesByWilaya, getDeliveryPrice } from '../lib/algeria'
 import type { Commune } from '../lib/algeria'
 
@@ -77,13 +77,14 @@ export default function CartPage() {
       const itemsPayload = items.map(item => {
           const appliedBundle = item.applied_bundle_idx != null && item.bundles ? item.bundles[item.applied_bundle_idx] : null
           const isManualBundle = appliedBundle && appliedBundle.quantity_trigger == null
+          const vPrice = item.variant_price || null
           const basePrice = (item.base_promo_price != null && item.base_promo_price < (item.base_price || item.price)) ? item.base_promo_price : (item.base_price || item.price)
 
           const itemTotal = appliedBundle && (isManualBundle || item.extra_unit_price == null)
-            ? appliedBundle!.price * item.quantity
+            ? (vPrice ? getBundlePrice(appliedBundle, vPrice) : appliedBundle!.price) * item.quantity
             : (item.extra_unit_price != null
-                ? computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price)
-                : basePrice * item.quantity)
+                ? computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price, vPrice)
+                : (vPrice ?? basePrice) * item.quantity)
           const addonsCost = (item.addons || []).reduce((as, a) => as + (a.total ?? a.quantity * a.price_per_unit), 0)
           const itemGrandTotal = itemTotal + addonsCost
 
@@ -197,13 +198,14 @@ export default function CartPage() {
               {items.map(item => {
                 const appliedBundle = item.applied_bundle_idx != null && item.bundles ? item.bundles[item.applied_bundle_idx] : null
                 const isManualBundle = appliedBundle && appliedBundle.quantity_trigger == null
+                const vPrice = item.variant_price || null
                 const basePrice = (item.base_promo_price != null && item.base_promo_price < (item.base_price || item.price)) ? item.base_promo_price : (item.base_price || item.price)
 
                 const itemTotal = appliedBundle && (isManualBundle || item.extra_unit_price == null)
-                  ? appliedBundle.price * item.quantity
+                  ? (vPrice ? getBundlePrice(appliedBundle, vPrice) : appliedBundle.price) * item.quantity
                   : (item.extra_unit_price != null
-                      ? computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price)
-                      : basePrice * item.quantity)
+                      ? computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price, vPrice)
+                      : (vPrice ?? basePrice) * item.quantity)
                 const addonsCost = (item.addons || []).reduce((as, a) => as + (a.total ?? a.quantity * a.price_per_unit), 0)
                 const itemGrandTotal = itemTotal + addonsCost
 

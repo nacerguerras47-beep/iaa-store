@@ -9,7 +9,7 @@ import { Loader2, Check, Home, Building2, AlertCircle, Minus, Plus } from 'lucid
 import { WILAYAS, getCommunesByWilaya, getDeliveryPrice } from '../../lib/algeria'
 import type { Commune } from '../../lib/algeria'
 import { useCart } from '../../context/CartContext'
-import { computeBundleTotal, computeAddonTotal } from '../../lib/pricing'
+import { computeBundleTotal, computeAddonTotal, getBundlePrice } from '../../lib/pricing'
 
 function getSchema(t: (k: string) => string) {
   return z.object({
@@ -38,17 +38,18 @@ interface Props {
   product: { id: string; name: string; price: number; promo_price?: number | null; images: string[] }
   deliveryPrices: { home: number; office: number }
   initialQty?: number
-  selectedBundle?: { name: string; price: number } | null
+  selectedBundle?: { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null } | null
   onSuccess?: (orderNumbers: string[]) => void
-  bundles?: { name: string; price: number; quantity_trigger?: number | null }[] | null
+  bundles?: { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[] | null
   selectedBundleIdx?: number | null
   onSelectBundle?: (idx: number | null) => void
   extraUnitPrice?: number | null
   addons?: { id: string; name: string; max_quantity: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]
   addonQtys?: Record<string, number>
+  variantPrice?: number | null
 }
 
-export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {} }: Props) {
+export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {}, variantPrice = null }: Props) {
   const { t } = useTranslation('common')
   const router = useRouter()
   const locale = router.locale || 'fr'
@@ -69,8 +70,10 @@ export default function OrderForm({ product, deliveryPrices, initialQty = 1, sel
 
   const hasManualBundle = selectedBundle != null && bundles?.some(b => b.name === selectedBundle.name && b.quantity_trigger == null)
   const productTotal = (extraUnitPrice != null && !hasManualBundle)
-    ? computeBundleTotal(qty, product.price, product.promo_price, bundles, extraUnitPrice)
-    : (selectedBundle?.price ?? ((product.promo_price && product.promo_price < product.price) ? product.promo_price : product.price)) * qty
+    ? computeBundleTotal(qty, product.price, product.promo_price, bundles, extraUnitPrice, variantPrice)
+    : (selectedBundle
+        ? (variantPrice ? getBundlePrice(selectedBundle, variantPrice) : selectedBundle.price) * qty
+        : (variantPrice ? variantPrice : (product.promo_price && product.promo_price < product.price ? product.promo_price : product.price)) * qty)
   const addonsTotal = addons.reduce((s, a) => {
     const { total } = computeAddonTotal(a.tiers, addonQtys[a.id] || 0)
     return s + total
@@ -114,7 +117,8 @@ const onWilayaChange = (code: string) => {
           addons: selectedAddons,
         },
         ...cartItems.map(item => {
-          const itemTotal = computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price)
+          const vPrice = item.variant_price || null
+          const itemTotal = computeBundleTotal(item.quantity, item.base_price || item.price, item.base_promo_price ?? item.promo_price, item.bundles, item.extra_unit_price, vPrice)
           return {
             product_id: item.product_id,
             product_name: item.name,

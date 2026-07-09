@@ -2,6 +2,19 @@ export interface BundleOption {
   name: string
   price: number
   quantity_trigger?: number | null
+  discount_percent?: number | null
+}
+
+/**
+ * Computes the effective per-unit price for a bundle given a variant price.
+ * If discount_percent is set, price = variantPrice × (1 - discount_percent/100).
+ * Otherwise falls back to bundle.price.
+ */
+export function getBundlePrice(bundle: BundleOption, variantPrice?: number | null): number {
+  if (bundle.discount_percent && variantPrice) {
+    return Math.round(variantPrice * (1 - bundle.discount_percent / 100))
+  }
+  return bundle.price
 }
 
 /**
@@ -11,8 +24,8 @@ export interface BundleOption {
  * 1. If extraUnitPrice is NULL → fall back to simple (promoPrice ?? basePrice) × qty
  * 2. Find the bundle with the highest quantity_trigger ≤ qty
  * 3. If found:
- *    - qty === trigger → return bundle.price
- *    - qty > trigger  → return bundle.price + (qty - trigger) × extraUnitPrice
+ *    - qty === trigger → return bundle price (variant-aware)
+ *    - qty > trigger  → return bundle price + (qty - trigger) × extraUnitPrice
  * 4. If no trigger bundle found → return (promoPrice ?? basePrice) × qty
  */
 export function computeBundleTotal(
@@ -21,11 +34,12 @@ export function computeBundleTotal(
   promoPrice: number | null | undefined,
   bundles: BundleOption[] | null | undefined,
   extraUnitPrice: number | null | undefined,
+  variantPrice?: number | null,
 ): number {
   const effectiveBase = promoPrice != null && promoPrice < basePrice ? promoPrice : basePrice
 
   if (extraUnitPrice == null) {
-    return effectiveBase * qty
+    return (variantPrice ?? effectiveBase) * qty
   }
 
   let bestIdx = -1
@@ -44,13 +58,14 @@ export function computeBundleTotal(
   if (bestIdx !== -1) {
     const bundle = bundles![bestIdx]
     const trigger = bundle.quantity_trigger!
+    const bundlePrice = getBundlePrice(bundle, variantPrice)
     if (qty <= trigger) {
-      return bundle.price
+      return bundlePrice
     }
-    return bundle.price + (qty - trigger) * extraUnitPrice
+    return bundlePrice + (qty - trigger) * extraUnitPrice
   }
 
-  return effectiveBase * qty
+  return (variantPrice ?? effectiveBase) * qty
 }
 
 export interface AddonTier {

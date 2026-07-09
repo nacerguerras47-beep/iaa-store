@@ -779,17 +779,17 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Offres groupées</span>
-                <button type="button" onClick={() => setForm(f => ({ ...f, bundles: [...f.bundles, { name: '', price: 0, quantity_trigger: null }] }))}
+                <button type="button" onClick={() => setForm(f => ({ ...f, bundles: [...f.bundles, { name: '', price: 0, quantity_trigger: null, discount_percent: null }] }))}
                   className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
                   <Plus size={12}/> Ajouter un bundle
                 </button>
               </div>
-              {(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[]).map((b, i) => (
+              {(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[]).map((b, i) => (
                 <div key={i} className="flex gap-2 items-end">
                   <div className="flex-1">
                     <label className="text-[10px] text-slate-400 font-medium">Nom</label>
                     <input type="text" value={b.name} onChange={e => {
-                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[])]
                       arr[i] = { ...arr[i], name: e.target.value }
                       setForm(f => ({ ...f, bundles: arr }))
                     }} className="input-field text-sm py-2" placeholder="Ex: +1 bouteille gaz"/>
@@ -797,26 +797,34 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                   <div className="w-28">
                     <label className="text-[10px] text-slate-400 font-medium">Prix (DA)</label>
                     <input type="number" value={b.price || ''} onChange={e => {
-                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[])]
                       arr[i] = { ...arr[i], price: Number(e.target.value) }
                       setForm(f => ({ ...f, bundles: arr }))
                     }} className="input-field text-sm py-2" min="0" placeholder="3500"/>
                   </div>
                   <div className="w-20">
+                    <label className="text-[10px] text-slate-400 font-medium">% Réduc</label>
+                    <input type="number" value={b.discount_percent ?? ''} onChange={e => {
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[])]
+                      arr[i] = { ...arr[i], discount_percent: e.target.value === '' ? null : Number(e.target.value) }
+                      setForm(f => ({ ...f, bundles: arr }))
+                    }} className="input-field text-sm py-2" min="0" max="100" step="0.01" placeholder="—"/>
+                  </div>
+                  <div className="w-20">
                     <label className="text-[10px] text-slate-400 font-medium">Déclencheur qty</label>
                     <input type="number" value={b.quantity_trigger ?? ''} onChange={e => {
-                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null }[])]
+                      const arr = [...(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[])]
                       arr[i] = { ...arr[i], quantity_trigger: e.target.value === '' ? null : Number(e.target.value) }
                       setForm(f => ({ ...f, bundles: arr }))
                     }} className="input-field text-sm py-2" min="0" placeholder="Auto"/>
                   </div>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, bundles: (f.bundles as { name: string; price: number; quantity_trigger?: number | null }[]).filter((_, idx) => idx !== i) }))}
+                  <button type="button" onClick={() => setForm(f => ({ ...f, bundles: (f.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[]).filter((_, idx) => idx !== i) }))}
                     className="w-9 h-9 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-red-500 transition-colors flex-shrink-0">
                     <Trash2 size={14}/>
                   </button>
                 </div>
               ))}
-              {(form.bundles as { name: string; price: number }[]).length === 0 && (
+              {(form.bundles as { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null }[]).length === 0 && (
                 <p className="text-xs text-slate-400 text-center py-2">لا توجد عروض بعد. أضف عرضاً بالزر أعلاه.</p>
               )}
 

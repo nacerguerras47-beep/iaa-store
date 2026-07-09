@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 import OrderForm from '../../components/product/OrderForm'
 import { supabase } from '../../lib/supabase'
-import { computeAddonTotal, fetchActivePromotions, applyGlobalPromotions } from '../../lib/pricing'
+import { computeAddonTotal, fetchActivePromotions, applyGlobalPromotions, getBundlePrice } from '../../lib/pricing'
 import { useCart } from '../../context/CartContext'
 
 interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{name:string;price:number;quantity_trigger?:number|null}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;stock:number;is_active:boolean}[] }
@@ -39,14 +39,15 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
 
   const hasPromo = product.promo_price && product.promo_price < product.price
   const bundles = product.has_bundles && product.bundles?.length ? product.bundles : null
-  const selectedBundle = bundles && selectedBundleIdx !== null ? bundles[selectedBundleIdx] : null
-  const bundlePrice = selectedBundle?.price ?? null
-
   const activeVariants = (product.variants || []).filter(v => v.is_active)
   const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null)
   const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
   const variantPrice = selectedVariant?.promo_price ?? selectedVariant?.price ?? null
   const variantStock = selectedVariant?.stock ?? null
+  const selectedBundle = bundles && selectedBundleIdx !== null ? bundles[selectedBundleIdx] : null
+  const bundlePrice = selectedBundle && variantPrice
+    ? getBundlePrice(selectedBundle, variantPrice)
+    : selectedBundle?.price ?? null
 
   const displayPrice = bundlePrice ?? variantPrice ?? (hasPromo ? product.promo_price! : product.price)
   const addonsTotal = addons.reduce((s, a) => {
@@ -79,6 +80,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       extra_unit_price: product.extra_unit_price,
       addons: selectedAddons,
       variant_name: vName,
+      variant_price: variantPrice ?? undefined,
     }, qty)
     toast.success(t('addedToCart'))
   }
@@ -212,19 +214,23 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
               </h1>
 
               {/* Price display */}
-              <div className="flex items-baseline gap-3 mb-3">
-                {hasPromo ? (
-                  <>
-                    <span className="text-3xl font-black text-gold-600 dark:text-gold-400">{fmt(displayPrice)} DA</span>
-                    <span className="text-lg text-slate-400 line-through">{fmt(product.price)} DA</span>
-                    <span className="bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-400 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1">
-                      <Zap size={11} className="fill-current" /> {t('promo')}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-3xl font-black text-slate-900 dark:text-white">{fmt(displayPrice)} DA</span>
-                )}
-              </div>
+              {(() => {
+                const originalUnitPrice = selectedVariant?.price ?? product.price
+                const originalTotal = originalUnitPrice * qty
+                const currentTotal = displayPrice * qty
+                const hasDiscount = currentTotal < originalTotal
+                return (
+                  <div className="flex items-baseline gap-3 mb-3 flex-wrap">
+                    <span className={`text-3xl font-black ${hasDiscount ? 'text-gold-600 dark:text-gold-400' : 'text-slate-900 dark:text-white'}`}>{fmt(currentTotal)} DA</span>
+                    {hasDiscount && <span className="text-lg text-slate-400 line-through">{fmt(originalTotal)} DA</span>}
+                    {hasDiscount && (
+                      <span className="bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-400 text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1">
+                        <Zap size={11} className="fill-current" /> {t('promo')}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Stock indicator */}
               <div className="flex items-center gap-2 mb-5">
@@ -312,7 +318,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                         </div>
                         <span className="text-sm font-medium text-slate-800 dark:text-white">{b.name}</span>
                       </div>
-                      <span className="text-sm font-black text-gold-600 dark:text-gold-400">{fmt(b.price)} DA</span>
+                      <span className="text-sm font-black text-gold-600 dark:text-gold-400">{fmt(getBundlePrice(b, variantPrice))} DA</span>
                     </button>
                   ))}
                 </div>
@@ -426,6 +432,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                     extraUnitPrice={product.extra_unit_price ?? null}
                     addons={addons}
                     addonQtys={addonQtys}
+                    variantPrice={variantPrice}
                   />
                   <div className="mt-4 text-center">
                     <button onClick={() => setMode('info')}
