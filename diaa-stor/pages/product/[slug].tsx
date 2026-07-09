@@ -46,6 +46,8 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
   const variantPrice = selectedVariant?.promo_price ?? selectedVariant?.price ?? null
   const variantStock = selectedVariant?.stock ?? null
+  const effectiveStock = selectedVariant ? selectedVariant.stock : product.stock
+  const isOutOfStock = effectiveStock <= 0
   const selectedBundle = bundles && selectedBundleIdx !== null ? bundles[selectedBundleIdx] : null
   const bundlePrice = selectedBundle && variantPrice
     ? getBundlePrice(selectedBundle, variantPrice)
@@ -61,6 +63,10 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const waMessage = `Bonjour ! Je voudrais commander le produit suivant :\n\n📦 ${product.name}\n💰 Prix : ${fmt(displayPrice)} DA\n\nMerci de me contacter.`
 
   const handleAddToCart = () => {
+    if (isOutOfStock) {
+      toast.error(t('outOfStock'))
+      return
+    }
     const selectedAddons = addons.filter(a => (addonQtys[a.id] || 0) > 0).map(a => {
       const { price_per_unit, total } = computeAddonTotal(a.tiers, addonQtys[a.id])
       return { name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
@@ -399,15 +405,25 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
               {mode === 'info' ? (
                 /* Cart + Buy Now buttons */
                 <div className="space-y-3">
-                  <button onClick={handleAddToCart}
-                    className={`w-full ${inCart ? 'btn-outline' : 'btn-primary'} py-4 text-base rounded-2xl`}>
+                  <button onClick={handleAddToCart} disabled={isOutOfStock}
+                    className={`w-full py-4 text-base rounded-2xl transition-all ${
+                      isOutOfStock
+                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                        : inCart
+                          ? 'btn-outline'
+                          : 'btn-primary'
+                    }`}>
                     <ShoppingCart size={20} />
-                    {inCart ? t('inCart') : t('addToCart')}
+                    {isOutOfStock ? t('outOfStock') : inCart ? t('inCart') : t('addToCart')}
                   </button>
-                  <button onClick={() => setMode('order')}
-                    className="w-full btn-gold py-4 text-base rounded-2xl">
-                    <Zap size={20} className="fill-white" />
-                    {t('buyNow')}
+                  <button onClick={() => setMode('order')} disabled={isOutOfStock}
+                    className={`w-full py-4 text-base rounded-2xl transition-all ${
+                      isOutOfStock
+                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                        : 'btn-gold'
+                    }`}>
+                    <Zap size={20} className={isOutOfStock ? '' : 'fill-white'} />
+                    {isOutOfStock ? t('outOfStock') : t('buyNow')}
                   </button>
                   <a href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`}
                     target="_blank" rel="noopener noreferrer"
