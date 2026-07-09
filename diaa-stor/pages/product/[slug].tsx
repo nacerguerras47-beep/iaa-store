@@ -38,7 +38,9 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
 
   const hasPromo = product.promo_price && product.promo_price < product.price
   const activeVariants = (product.variants || []).filter(v => v.is_active)
-  const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null)
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(
+    activeVariants.length > 0 ? 0 : null
+  )
   const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
   const variantPrice = selectedVariant?.promo_price ?? selectedVariant?.price ?? null
   const variantStock = selectedVariant?.stock ?? null
