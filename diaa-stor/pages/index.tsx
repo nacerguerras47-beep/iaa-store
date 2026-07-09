@@ -34,6 +34,7 @@ interface Props {
   initialProducts: Product[]
   categories:      Category[]
   banners:         Banner[]
+  _debugError?:    string
 }
 
 /**
@@ -46,7 +47,7 @@ function fmt(n: number): string {
   return n.toLocaleString('fr-FR')
 }
 
-export default function Home({ initialProducts, categories, banners }: Props) {
+export default function Home({ initialProducts, categories, banners, _debugError }: Props) {
   const { t } = useTranslation('common')
   const router = useRouter()
   const [products, setProducts]               = useState<Product[]>(initialProducts)
@@ -193,6 +194,13 @@ export default function Home({ initialProducts, categories, banners }: Props) {
 
   return (
     <Layout>
+      {_debugError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+          <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-2xl p-4 text-sm text-red-700 dark:text-red-300">
+            <strong>Erreur serveur:</strong> {_debugError}
+          </div>
+        </div>
+      )}
       {/* ─── HERO ───────────────────────────────────────────── */}
       <section className="relative min-h-[85vh] flex items-center overflow-hidden">
         <div className="absolute inset-0 bg-gradient-hero" />
@@ -633,13 +641,15 @@ export const getServerSideProps: GetServerSideProps = async ({ locale, query }) 
         banners:         banners    || [],
       },
     }
-  } catch {
+  } catch (err: any) {
+    console.error('Homepage getServerSideProps error:', err?.message || err)
     return {
       props: {
         ...(await serverSideTranslations(locale || 'fr', ['common'])),
         initialProducts: [],
         categories:      [],
         banners:         [],
+        _debugError:     err?.message || String(err),
       },
     }
   }
