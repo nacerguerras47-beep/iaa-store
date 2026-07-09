@@ -8,6 +8,8 @@ export interface BundleOption {
   name: string
   price: number
   quantity_trigger?: number | null
+  discount_percent?: number | null
+  variant_id?: string | null
 }
 
 export interface CartItem {

@@ -23,7 +23,7 @@ interface Product {
   id: string; name: string; slug: string; price: number
   promo_price?: number | null; images: string[]
   category?: string; is_new?: boolean; stock?: number
-  has_bundles?: boolean; bundles?: { name: string; price: number; quantity_trigger?: number | null }[]; extra_unit_price?: number | null
+  has_bundles?: boolean; bundles?: { id:string; name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null; variant_id?: string | null; is_active: boolean; sort_order: number }[]; extra_unit_price?: number | null
 }
 interface Category { id: string; name: string; icon: string; slug: string }
 interface Banner {
@@ -91,7 +91,7 @@ export default function Home({ initialProducts, categories, banners }: Props) {
         fetchActivePromotions(supabase),
         supabase
           .from('products')
-          .select('id, name, slug, price, promo_price, images, has_bundles, bundles, extra_unit_price')
+          .select('id, name, slug, price, promo_price, images, has_bundles, bundles:product_bundles(*), extra_unit_price')
           .or(`name.ilike.%${heroDebounced}%,description.ilike.%${heroDebounced}%`)
           .eq('is_visible', true)
           .limit(8),
@@ -168,7 +168,7 @@ export default function Home({ initialProducts, categories, banners }: Props) {
       setLoading(true)
       let q = supabase
         .from('products')
-        .select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles,extra_unit_price')
+        .select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles:product_bundles(*),extra_unit_price')
         .eq('is_visible', true)
         .order('created_at', { ascending: false })
       if (search)                   q = q.ilike('name', `%${search}%`)
@@ -615,7 +615,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale, query }) 
       promotions,
     ] = await Promise.all([
       (async () => {
-        let q = supabase.from('products').select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles,extra_unit_price,variants:product_variants(id,name,price,promo_price,stock,is_active)').eq('is_visible', true)
+        let q = supabase.from('products').select('id,name,slug,price,promo_price,images,category,is_new,stock,has_bundles,bundles:product_bundles(*),extra_unit_price,variants:product_variants(id,name,price,promo_price,stock,is_active)').eq('is_visible', true)
         if (searchQuery) q = q.ilike('name', `%${searchQuery}%`)
         if (catQuery)    q = q.eq('category', catQuery)
         return q.order('created_at', { ascending: false }).limit(24)

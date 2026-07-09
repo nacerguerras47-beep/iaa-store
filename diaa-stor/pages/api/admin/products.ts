@@ -13,7 +13,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     let q = supabaseAdmin
       .from('products')
-      .select('*, variants:product_variants(*)', { count: 'exact' })
+      .select('*, variants:product_variants(*), bundles:product_bundles(*)', { count: 'exact' })
 
     if (search)   q = q.ilike('name', `%${search}%`)
     if (category && category !== 'all') q = q.eq('category', category)
@@ -52,7 +52,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         is_visible:  is_visible !== false,
         is_new:      Boolean(is_new),
         has_bundles: Boolean(has_bundles),
-        bundles:     Array.isArray(bundles) ? bundles : [],
+        bundles:     [],
         extra_unit_price: extra_unit_price != null ? Number(extra_unit_price) : null,
         slug,
       })
@@ -102,12 +102,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       )
     }
 
+    // Save bundles to product_bundles table
+    if (Array.isArray(bundles) && bundles.length > 0) {
+      await supabaseAdmin.from('product_bundles').insert(
+        bundles.map((b: any, i: number) => ({
+          product_id:       data.id,
+          variant_id:       b.variant_id || null,
+          name:             String(b.name).trim(),
+          price:            Number(b.price),
+          quantity_trigger: b.quantity_trigger != null ? Number(b.quantity_trigger) : null,
+          discount_percent: b.discount_percent != null ? Number(b.discount_percent) : null,
+          sort_order:       i,
+        }))
+      )
+    }
+
     return res.status(201).json(data)
   }
 
   // PUT — update product
   if (req.method === 'PUT') {
-    const { id, addons, variants, ...updates } = req.body
+    const { id, addons, variants, bundles, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'ID requis' })
 
     // Sanitize numeric fields
@@ -168,6 +183,24 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             stock:       Number(v.stock) || 0,
             is_active:   v.is_active !== false,
             sort_order:  i,
+          }))
+        )
+      }
+    }
+
+    // Replace bundles in product_bundles table
+    if (Array.isArray(bundles)) {
+      await supabaseAdmin.from('product_bundles').delete().eq('product_id', id)
+      if (bundles.length > 0) {
+        await supabaseAdmin.from('product_bundles').insert(
+          bundles.map((b: any, i: number) => ({
+            product_id:       id,
+            variant_id:       b.variant_id || null,
+            name:             String(b.name).trim(),
+            price:            Number(b.price),
+            quantity_trigger: b.quantity_trigger != null ? Number(b.quantity_trigger) : null,
+            discount_percent: b.discount_percent != null ? Number(b.discount_percent) : null,
+            sort_order:       i,
           }))
         )
       }

@@ -12,7 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { computeAddonTotal, fetchActivePromotions, applyGlobalPromotions, getBundlePrice } from '../../lib/pricing'
 import { useCart } from '../../context/CartContext'
 
-interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{name:string;price:number;quantity_trigger?:number|null}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;stock:number;is_active:boolean}[] }
+interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{id:string;name:string;price:number;quantity_trigger?:number|null;discount_percent?:number|null;variant_id?:string|null;is_active:boolean;sort_order:number}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;stock:number;is_active:boolean}[] }
 /**
  * fmt — always passes 'fr-FR' explicitly to toLocaleString.
  * Without an explicit locale, Node.js (Netlify build/SSR) defaults to
@@ -38,7 +38,9 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const inCart = isInCart(product.id)
 
   const hasPromo = product.promo_price && product.promo_price < product.price
-  const bundles = product.has_bundles && product.bundles?.length ? product.bundles : null
+  const bundles = product.has_bundles && product.bundles?.length
+    ? product.bundles.filter(b => b.is_active !== false && (selectedVariant ? (!b.variant_id || b.variant_id === selectedVariant.name) : !b.variant_id))
+    : null
   const activeVariants = (product.variants || []).filter(v => v.is_active)
   const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null)
   const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
@@ -455,7 +457,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, locale })
 
   const { data: product, error } = await supabase
     .from('products')
-    .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active)')
+    .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active), bundles:product_bundles(*)')
     .eq('slug', slug)
     .eq('is_visible', true)
     .single()

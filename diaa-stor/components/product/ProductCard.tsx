@@ -16,7 +16,7 @@ interface Product {
   is_new?:     boolean
   stock?:      number
   has_bundles?: boolean
-  bundles?:    { name: string; price: number; quantity_trigger?: number | null }[]
+  bundles?:    { id?:string; name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null; variant_id?: string | null; is_active?: boolean }[]
   extra_unit_price?: number | null
 }
 
