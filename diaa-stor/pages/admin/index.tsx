@@ -571,6 +571,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
       name: v.name || '',
       price: v.price?.toString() || '',
       promo_price: v.promo_price?.toString() || '',
+      extra_unit_price: v.extra_unit_price ?? null,
       stock: v.stock?.toString() || '0',
       is_active: v.is_active !== false,
     })),
@@ -964,7 +965,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                 </button>
               </div>
               {form.has_variants && (
-              <button type="button" onClick={() => setForm(f => ({ ...f, variants: [...f.variants, { name: '', price: '', promo_price: '', stock: '0', is_active: true }] }))}
+              <button type="button" onClick={() => setForm(f => ({ ...f, variants: [...f.variants, { name: '', price: '', promo_price: '', extra_unit_price: null, stock: '0', is_active: true }] }))}
                 className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
                 <Plus size={12}/> Ajouter une variante
               </button>
@@ -994,7 +995,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                     <Trash2 size={14}/>
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-[10px] text-slate-400 font-medium">Prix (DA)</label>
                     <input type="number" value={v.price} onChange={e => {
@@ -1018,6 +1019,14 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                       arr[i] = { ...arr[i], stock: Math.max(0, Number(e.target.value)).toString() }
                       setForm(f => ({ ...f, variants: arr }))
                     }} className="input-field text-sm py-2" min="0" placeholder="0"/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-medium">Prix unité supp.</label>
+                    <input type="number" value={v.extra_unit_price ?? ''} onChange={e => {
+                      const arr = [...form.variants]
+                      arr[i] = { ...arr[i], extra_unit_price: e.target.value === '' ? null : Number(e.target.value) }
+                      setForm(f => ({ ...f, variants: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="Optionnel"/>
                   </div>
                 </div>
               </div>

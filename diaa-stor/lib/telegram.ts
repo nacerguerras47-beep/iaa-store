@@ -17,7 +17,7 @@ export async function sendTelegramNotification(order: any): Promise<void> {
     `🔑 *N° Commande:* \`${order.order_number}\``,
     `📅 *Date:* ${new Date(order.created_at).toLocaleString('fr-FR')}`,
     ``,
-    `📦 *Produit:* ${escMd(order.product_name)}`,
+    `📦 *Produit:* ${escMd(order.product_name)}${order.variant_name ? ' — ' + escMd(order.variant_name) : ''}`,
     `🔢 *Quantité:* ${order.quantity}`,
     `💰 *Prix unitaire:* ${Number(order.unit_price).toLocaleString('fr-FR')} DA`,
     `🚚 *Livraison:* ${Number(order.delivery_price).toLocaleString('fr-FR')} DA`,
@@ -72,7 +72,7 @@ export async function sendBulkTelegramNotification(orders: any[], totalDelivery?
   const displayDelivery = totalDelivery ?? totalDeliverySum
 
   const productLines = orders.map((o, i) =>
-    `  ${i + 1}\\. ${escMd(o.product_name)} × ${o.quantity} — ${Number(o.total_price - o.delivery_price).toLocaleString('fr-FR')} DA`
+    `  ${i + 1}\\. ${escMd(o.product_name)}${o.variant_name ? ' — ' + escMd(o.variant_name) : ''} × ${o.quantity} — ${Number(o.total_price - o.delivery_price).toLocaleString('fr-FR')} DA`
   ).join('\n')
 
   const message = [

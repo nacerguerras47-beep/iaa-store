@@ -91,30 +91,33 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (Array.isArray(variants) && variants.length > 0) {
       await supabaseAdmin.from('product_variants').insert(
         variants.map((v: any, i: number) => ({
-          product_id:  data.id,
-          name:        String(v.name).trim(),
-          price:       Number(v.price),
-          promo_price: v.promo_price ? Number(v.promo_price) : null,
-          stock:       Number(v.stock) || 0,
-          is_active:   v.is_active !== false,
-          sort_order:  i,
+          product_id:       data.id,
+          name:             String(v.name).trim(),
+          price:            Number(v.price),
+          promo_price:      v.promo_price ? Number(v.promo_price) : null,
+          extra_unit_price: v.extra_unit_price != null ? Number(v.extra_unit_price) : null,
+          stock:            Number(v.stock) || 0,
+          is_active:        v.is_active !== false,
+          sort_order:       i,
         }))
       )
     }
 
     // Save bundles to product_bundles table
     if (Array.isArray(bundles) && bundles.length > 0) {
-      await supabaseAdmin.from('product_bundles').insert(
+      const { error: bundleErr } = await supabaseAdmin.from('product_bundles').insert(
         bundles.map((b: any, i: number) => ({
           product_id:       data.id,
           variant_id:       b.variant_id || null,
-          name:             String(b.name).trim(),
-          price:            Number(b.price),
+          name:             String(b.name || '').trim(),
+          price:            Number(b.price) || 0,
           quantity_trigger: b.quantity_trigger != null ? Number(b.quantity_trigger) : null,
           discount_percent: b.discount_percent != null ? Number(b.discount_percent) : null,
           sort_order:       i,
+          is_active:        true,
         }))
       )
+      if (bundleErr) console.error('Bundle insert error:', bundleErr)
     }
 
     return res.status(201).json(data)
@@ -176,13 +179,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (variants.length > 0) {
         await supabaseAdmin.from('product_variants').insert(
           variants.map((v: any, i: number) => ({
-            product_id:  id,
-            name:        String(v.name).trim(),
-            price:       Number(v.price),
-            promo_price: v.promo_price ? Number(v.promo_price) : null,
-            stock:       Number(v.stock) || 0,
-            is_active:   v.is_active !== false,
-            sort_order:  i,
+            product_id:       id,
+            name:             String(v.name).trim(),
+            price:            Number(v.price),
+            promo_price:      v.promo_price ? Number(v.promo_price) : null,
+            extra_unit_price: v.extra_unit_price != null ? Number(v.extra_unit_price) : null,
+            stock:            Number(v.stock) || 0,
+            is_active:        v.is_active !== false,
+            sort_order:       i,
           }))
         )
       }
@@ -190,19 +194,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Replace bundles in product_bundles table
     if (Array.isArray(bundles)) {
-      await supabaseAdmin.from('product_bundles').delete().eq('product_id', id)
+      const { error: delErr } = await supabaseAdmin.from('product_bundles').delete().eq('product_id', id)
+      if (delErr) console.error('Bundle delete error:', delErr)
       if (bundles.length > 0) {
-        await supabaseAdmin.from('product_bundles').insert(
+        const { error: insErr } = await supabaseAdmin.from('product_bundles').insert(
           bundles.map((b: any, i: number) => ({
             product_id:       id,
             variant_id:       b.variant_id || null,
-            name:             String(b.name).trim(),
-            price:            Number(b.price),
+            name:             String(b.name || '').trim(),
+            price:            Number(b.price) || 0,
             quantity_trigger: b.quantity_trigger != null ? Number(b.quantity_trigger) : null,
             discount_percent: b.discount_percent != null ? Number(b.discount_percent) : null,
             sort_order:       i,
+            is_active:        true,
           }))
         )
+        if (insErr) console.error('Bundle insert error:', insErr)
       }
     }
 

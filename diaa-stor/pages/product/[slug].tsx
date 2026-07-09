@@ -12,7 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { computeAddonTotal, fetchActivePromotions, applyGlobalPromotions, getBundlePrice } from '../../lib/pricing'
 import { useCart } from '../../context/CartContext'
 
-interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{id:string;name:string;price:number;quantity_trigger?:number|null;discount_percent?:number|null;variant_id?:string|null;is_active:boolean;sort_order:number}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;stock:number;is_active:boolean}[] }
+interface Product { id:string; name:string; slug:string; description?:string; price:number; promo_price?:number|null; images:string[]; stock:number; category?:string; is_visible:boolean; has_bundles?:boolean; bundles?:{id:string;name:string;price:number;quantity_trigger?:number|null;discount_percent?:number|null;variant_id?:string|null;is_active:boolean;sort_order:number}[]; extra_unit_price?:number|null; variants?:{id:string;name:string;price:number;promo_price?:number|null;extra_unit_price?:number|null;stock:number;is_active:boolean}[] }
 /**
  * fmt — always passes 'fr-FR' explicitly to toLocaleString.
  * Without an explicit locale, Node.js (Netlify build/SSR) defaults to
@@ -79,7 +79,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       base_name: product.name,
       base_price: product.price,
       base_promo_price: product.promo_price,
-      extra_unit_price: product.extra_unit_price,
+      extra_unit_price: selectedVariant?.extra_unit_price ?? product.extra_unit_price,
       addons: selectedAddons,
       variant_name: vName,
       variant_price: variantPrice ?? undefined,
@@ -258,7 +258,9 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                   <div className="grid grid-cols-2 gap-2">
                     {activeVariants.map((v, i) => (
                       <button key={i} type="button" onClick={() => {
-                        setSelectedVariantIdx(selectedVariantIdx === i ? null : i)
+                        const next = selectedVariantIdx === i ? null : i
+                        setSelectedVariantIdx(next)
+                        if (next !== null) setMode('order')
                         setQty(1)
                       }}
                         className={`w-full flex flex-col p-3 rounded-xl border-2 transition-all ${
@@ -301,6 +303,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                     <button key={i} type="button" onClick={() => {
                         const idx = selectedBundleIdx === i ? null : i
                         setSelectedBundleIdx(idx)
+                        if (idx !== null) setMode('order')
                         if (idx !== null && bundles?.[idx]?.quantity_trigger) {
                           setQty(bundles[idx].quantity_trigger!)
                         } else if (idx === null) {
@@ -431,7 +434,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                         setQty(1)
                       }
                     }}
-                    extraUnitPrice={product.extra_unit_price ?? null}
+                    extraUnitPrice={selectedVariant?.extra_unit_price ?? product.extra_unit_price ?? null}
                     addons={addons}
                     addonQtys={addonQtys}
                     variantPrice={variantPrice}
