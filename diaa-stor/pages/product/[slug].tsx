@@ -473,43 +473,51 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
 
 export const getServerSideProps: GetServerSideProps = async ({ params, locale }) => {
   const slug = params?.slug as string
+  try {
+    const { data: product, error } = await supabase
+      .from('products')
+      .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active), bundles:product_bundles(*)')
+      .eq('slug', slug)
+      .eq('is_visible', true)
+      .single()
 
-  const { data: product, error } = await supabase
-    .from('products')
-    .select('*, variants:product_variants(id, name, price, promo_price, stock, is_active), bundles:product_bundles(*)')
-    .eq('slug', slug)
-    .eq('is_visible', true)
-    .single()
+    if (error) {
+      console.error('Supabase product query error:', error)
+      return { notFound: true }
+    }
+    if (!product) return { notFound: true }
 
-  if (!product) return { notFound: true }
+    const [promotions, { data: settings }, { data: addonsData }] = await Promise.all([
+      fetchActivePromotions(supabase),
+      supabase
+        .from('settings')
+        .select('key,value')
+        .in('key', ['delivery_home_price', 'delivery_office_price']),
+      supabase
+        .from('product_addons')
+        .select('id, name, max_quantity, tiers:product_addon_tiers(min_quantity, price_per_unit)')
+        .eq('product_id', product.id)
+        .eq('is_active', true),
+    ])
 
-  const [promotions, { data: settings }, { data: addonsData }] = await Promise.all([
-    fetchActivePromotions(supabase),
-    supabase
-      .from('settings')
-      .select('key,value')
-      .in('key', ['delivery_home_price', 'delivery_office_price']),
-    supabase
-      .from('product_addons')
-      .select('id, name, max_quantity, tiers:product_addon_tiers(min_quantity, price_per_unit)')
-      .eq('product_id', product.id)
-      .eq('is_active', true),
-  ])
+    const [promoted] = applyGlobalPromotions([product], promotions)
 
-  const [promoted] = applyGlobalPromotions([product], promotions)
-
-  return {
-    props: {
-      ...(await serverSideTranslations(locale || 'fr', ['common'])),
-      product: promoted,
-      addons: (addonsData || []).map(a => ({
-        ...a,
-        tiers: (a.tiers || []).map((t: any) => ({ ...t, price_per_unit: Number(t.price_per_unit) })),
-      })),
-      deliveryPrices: {
-        home: Number(settings?.find(s => s.key === 'delivery_home_price')?.value || 400),
-        office: Number(settings?.find(s => s.key === 'delivery_office_price')?.value || 250),
+    return {
+      props: {
+        ...(await serverSideTranslations(locale || 'fr', ['common'])),
+        product: promoted,
+        addons: (addonsData || []).map(a => ({
+          ...a,
+          tiers: (a.tiers || []).map((t: any) => ({ ...t, price_per_unit: Number(t.price_per_unit) })),
+        })),
+        deliveryPrices: {
+          home: Number(settings?.find(s => s.key === 'delivery_home_price')?.value || 400),
+          office: Number(settings?.find(s => s.key === 'delivery_office_price')?.value || 250),
+        },
       },
-    },
+    }
+  } catch (err: any) {
+    console.error('Product page getServerSideProps error:', err?.message || err)
+    return { notFound: true }
   }
 }
