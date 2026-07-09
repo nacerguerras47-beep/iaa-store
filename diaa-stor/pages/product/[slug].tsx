@@ -32,15 +32,11 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const [mode, setMode] = useState<'info' | 'order'>('info')
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [orderNumbers, setOrderNumbers] = useState<string[]>([])
-  const [selectedBundleIdx, setSelectedBundleIdx] = useState<number | null>(null)
   const [addonQtys, setAddonQtys] = useState<Record<string, number>>({})
   const [qty, setQty] = useState(1)
   const inCart = isInCart(product.id)
 
   const hasPromo = product.promo_price && product.promo_price < product.price
-  const bundles = product.has_bundles && product.bundles?.length
-    ? product.bundles.filter(b => b.is_active !== false && (selectedVariant ? (!b.variant_id || b.variant_id === selectedVariant.name) : !b.variant_id))
-    : null
   const activeVariants = (product.variants || []).filter(v => v.is_active)
   const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null)
   const selectedVariant = selectedVariantIdx !== null ? activeVariants[selectedVariantIdx] : null
@@ -48,6 +44,10 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const variantStock = selectedVariant?.stock ?? null
   const effectiveStock = selectedVariant ? selectedVariant.stock : product.stock
   const isOutOfStock = effectiveStock <= 0
+  const bundles = product.has_bundles && product.bundles?.length
+    ? product.bundles.filter(b => b.is_active !== false && (selectedVariant ? (!b.variant_id || b.variant_id === selectedVariant.name) : !b.variant_id))
+    : null
+  const [selectedBundleIdx, setSelectedBundleIdx] = useState<number | null>(null)
   const selectedBundle = bundles && selectedBundleIdx !== null ? bundles[selectedBundleIdx] : null
   const bundlePrice = selectedBundle && variantPrice
     ? getBundlePrice(selectedBundle, variantPrice)
