@@ -56,11 +56,16 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
     : selectedBundle?.price ?? null
 
   const displayPrice = bundlePrice ?? variantPrice ?? (hasPromo ? product.promo_price! : product.price)
+  const currentTotal = selectedBundle && selectedBundle.quantity_trigger
+    ? qty <= selectedBundle.quantity_trigger
+      ? bundlePrice!
+      : bundlePrice! + (qty - selectedBundle.quantity_trigger) * (selectedVariant?.extra_unit_price ?? product.extra_unit_price ?? 0)
+    : displayPrice * qty
   const addonsTotal = addons.reduce((s, a) => {
     const { total } = computeAddonTotal(a.tiers, addonQtys[a.id] || 0)
     return s + total
   }, 0)
-  const grandTotal = displayPrice * 1 + addonsTotal
+  const grandTotal = currentTotal + addonsTotal
   const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '213795653670'
   const waMessage = `Bonjour ! Je voudrais commander le produit suivant :\n\n📦 ${product.name}\n💰 Prix : ${fmt(displayPrice)} DA\n\nMerci de me contacter.`
 
@@ -227,7 +232,6 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
               {(() => {
                 const originalUnitPrice = selectedVariant?.price ?? product.price
                 const originalTotal = originalUnitPrice * qty
-                const currentTotal = displayPrice * qty
                 const hasDiscount = currentTotal < originalTotal
                 return (
                   <div className="flex items-baseline gap-3 mb-3 flex-wrap">
@@ -268,6 +272,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                       <button key={i} type="button" onClick={() => {
                         const next = selectedVariantIdx === i ? null : i
                         setSelectedVariantIdx(next)
+                        setSelectedBundleIdx(null)
                         if (next !== null) setMode('order')
                         setQty(1)
                       }}
