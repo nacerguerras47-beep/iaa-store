@@ -134,18 +134,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         delivered: 'Livré',
         cancelled: 'Annulé',
       }
-      updateOrderStatusInSheet(data.order_number, statusLabels[status] || status)
+      try { await updateOrderStatusInSheet(data.order_number, statusLabels[status] || status) } catch (e) { console.error('Status sync failed:', e) }
     }
 
     // Sync nombre change to Google Sheets (column J)
     if (nombre !== undefined && data?.order_number) {
-      updateOrderNombreInSheet(data.order_number, updates.nombre as number | null)
+      try { await updateOrderNombreInSheet(data.order_number, updates.nombre as number | null) } catch (e) { console.error('Nombre sync failed:', e) }
     }
 
-    // Sync price change to Google Sheets (columns M & N)
+    // Sync price change to Google Sheets (columns O & P)
     if (total_price !== undefined && delivery_price !== undefined && data?.order_number) {
       const netPrice = Number(total_price) - Number(delivery_price)
-      updateOrderPriceInSheet(data.order_number, Number(total_price), netPrice)
+      try { await updateOrderPriceInSheet(data.order_number, Number(total_price), netPrice) } catch (e) { console.error('Price sync failed:', e) }
     }
 
     return res.json(data)
