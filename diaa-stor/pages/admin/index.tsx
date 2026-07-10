@@ -1100,7 +1100,7 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     const totalPrice = Math.round(unitPrice * order.quantity + deliveryPrice)
     const r = await fetch('/api/admin/orders', {
       method: 'PUT', headers: apiHeaders,
-      body: JSON.stringify({ id, unit_price: unitPrice, delivery_price: deliveryPrice, total_price: totalPrice }),
+      body: JSON.stringify({ id, unit_price: unitPrice, delivery_price: deliveryPrice, total_price: totalPrice, order_number: order.order_number }),
     })
     if (r.ok) {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, unit_price: unitPrice, delivery_price: deliveryPrice, total_price: totalPrice } : o))
