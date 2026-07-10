@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
-import { updateOrderNombreInSheet, updateOrderPriceInSheet } from '../../../lib/googleSheets'
+import { updateOrderNombreInSheet, updateOrderPriceInSheet, updateOrderStatusInSheet } from '../../../lib/googleSheets'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
@@ -125,7 +125,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    // Sync nombre change to Google Sheets (column H)
+    // Sync status change to Google Sheets (column I — Situation)
+    if (status !== undefined && data?.order_number) {
+      const statusLabels: Record<string, string> = {
+        pending: 'En attente',
+        confirmed: 'Confirmé',
+        shipped: 'Expédié',
+        delivered: 'Livré',
+        cancelled: 'Annulé',
+      }
+      updateOrderStatusInSheet(data.order_number, statusLabels[status] || status)
+    }
+
+    // Sync nombre change to Google Sheets (column J)
     if (nombre !== undefined && data?.order_number) {
       updateOrderNombreInSheet(data.order_number, updates.nombre as number | null)
     }

@@ -70,3 +70,25 @@ export async function updateOrderNombreInSheet(
     console.error('Google Sheets update error:', err)
   }
 }
+
+export async function updateOrderStatusInSheet(
+  orderNumber: string,
+  situation: string,
+): Promise<void> {
+  const url = process.env.GOOGLE_APPS_SCRIPT_URL
+  if (!url) {
+    console.warn('GOOGLE_APPS_SCRIPT_URL not configured — skipping')
+    return
+  }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'updateStatus', order_number: orderNumber, situation }),
+    })
+    const text = await res.text()
+    console.log('Google Sheets status update response:', text)
+  } catch (err) {
+    console.error('Google Sheets status update error:', err)
+  }
+}
