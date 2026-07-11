@@ -1,3 +1,6 @@
+var WEBHOOK_URL = 'https://diaa-store.vercel.app/api/webhook/sheets'
+var WEBHOOK_SECRET = 'db2431fe9399448a9bcddb81d26b3b6ba3badbfdf5ea69c1'
+
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents)
@@ -144,4 +147,57 @@ function sortByNombre(e) {
   withNumber.sort((a, b) => Number(a[9]) - Number(b[9]))
 
   range.setValues([...withNumber, ...withoutNumber])
+}
+
+function onEdit(e) {
+  const sheet = e.source.getActiveSheet()
+  if (sheet.getName() !== 'Commandes') return
+
+  var COLUMN_MAP = {
+    9:  'situation',
+    10: 'nombre',
+    11: 'is_expedie',
+    12: 'is_livre',
+    13: 'paiement',
+    15: 'total_price',
+    16: 'net_price',
+  }
+
+  var col = e.range.getColumn()
+  var field = COLUMN_MAP[col]
+  if (!field) return
+
+  if (e.oldValue !== undefined && e.oldValue === e.value) return
+
+  var row = e.range.getRow()
+  if (row < 2) return
+
+  var orderNumber = sheet.getRange(row, 18).getValue()
+  if (!orderNumber) return
+
+  var value = e.value
+  if (value === undefined || value === null) return
+
+  if (col === 10 || col === 15 || col === 16) {
+    value = Number(value)
+  }
+
+  var payload = {
+    secret: WEBHOOK_SECRET,
+    order_number: String(orderNumber).trim(),
+    field: field,
+    value: value,
+  }
+
+  try {
+    var resp = UrlFetchApp.fetch(WEBHOOK_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    })
+    console.log('Webhook response: ' + resp.getContentText())
+  } catch(err) {
+    console.error('Webhook error: ' + err.message)
+  }
 }
