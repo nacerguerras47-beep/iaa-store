@@ -122,7 +122,14 @@ function handleUpdateStatus(data) {
 }
 
 function setupTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) { ScriptApp.deleteTrigger(t) })
+
   ScriptApp.newTrigger('sortByNombre')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onEdit()
+    .create()
+
+  ScriptApp.newTrigger('syncToAdmin')
     .forSpreadsheet(SpreadsheetApp.getActive())
     .onEdit()
     .create()
@@ -149,8 +156,8 @@ function sortByNombre(e) {
   range.setValues([...withNumber, ...withoutNumber])
 }
 
-function onEdit(e) {
-  const sheet = e.source.getActiveSheet()
+function syncToAdmin(e) {
+  var sheet = e.source.getActiveSheet()
   if (sheet.getName() !== 'Commandes') return
 
   var COLUMN_MAP = {
@@ -196,8 +203,8 @@ function onEdit(e) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     })
-    console.log('Webhook response: ' + resp.getContentText())
+    Logger.log('Webhook response: ' + resp.getContentText())
   } catch(err) {
-    console.error('Webhook error: ' + err.message)
+    Logger.log('Webhook error: ' + err.message)
   }
 }
