@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
 import { updateOrderNombreInSheet, updateOrderPriceInSheet, updateOrderStatusInSheet } from '../../../lib/googleSheets'
+import { sendPurchaseEvent } from '../../../lib/metaConversions'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
@@ -47,7 +48,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Fetch current order to detect status transition for stock management
     const { data: currentOrder, error: fetchErr } = await supabaseAdmin
       .from('orders')
-      .select('id, status, product_id, quantity, variant_name')
+      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number')
       .eq('id', id)
       .single()
 
@@ -123,6 +124,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           if (stockErr) console.error('Stock restore failed:', stockErr.message)
         }
       }
+    }
+
+    // ── Meta Conversions API Purchase event ──
+    if (status === 'confirmed' && status !== prevStatus && currentOrder?.phone && currentOrder?.total_price) {
+      sendPurchaseEvent({
+        order_number: currentOrder.order_number || '',
+        phone: currentOrder.phone,
+        total: Number(currentOrder.total_price),
+        product_name: currentOrder.product_name || '',
+      }).catch(e => console.error('[MetaCAPI] sendPurchaseEvent failed:', e))
     }
 
     // Sync status change to Google Sheets (column I — Situation)
