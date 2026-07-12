@@ -1074,17 +1074,24 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     const d = await r.json()
     setOrders(d.orders || [])
     setTotal(d.total || 0)
-    // Refresh priceEdits for expanded order with latest server data
-    if (expanded) {
-      const updated = (d.orders || []).find((o: any) => o.id === expanded)
-      if (updated) {
-        setPriceEdits(prev => ({ ...prev, [expanded]: { unit_price: String(updated.unit_price ?? ''), delivery_price: String(updated.delivery_price ?? '') } }))
-      }
-    }
     setLoading(false)
-  }, [page, search, statusF, apiHeaders, expanded])
+  }, [page, search, statusF, apiHeaders])
 
   useEffect(() => { load() }, [load])
+
+  // Sync priceEdits whenever orders change (e.g. after load/refresh)
+  useEffect(() => {
+    if (expanded) {
+      const o = orders.find(x => x.id === expanded)
+      if (o) {
+        setPriceEdits(prev => {
+          const cur = prev[expanded]
+          if (cur && cur.unit_price === String(o.unit_price ?? '') && cur.delivery_price === String(o.delivery_price ?? '')) return prev
+          return { ...prev, [expanded]: { unit_price: String(o.unit_price ?? ''), delivery_price: String(o.delivery_price ?? '') } }
+        })
+      }
+    }
+  }, [orders, expanded])
 
   const updateOrder = async (id: string, updates: any) => {
     const r = await fetch('/api/admin/orders', {
