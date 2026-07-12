@@ -191,8 +191,8 @@ function syncToAdmin(e) {
 
   if (col === 10 || col === 15 || col === 16) {
     value = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value)
+    if (isNaN(value)) { Logger.log('NaN value, skipping'); return }
   }
-  if (isNaN(value)) { Logger.log('NaN value, skipping'); return }
 
   Logger.log('Sending: field=' + field + ' value=' + value + ' order=' + String(orderNumber).trim())
 
@@ -216,6 +216,11 @@ function syncToAdmin(e) {
     if (field === 'total_price' && respData.unit_price !== undefined) {
       sheet.getRange(row, 16).setValue(respData.unit_price)
       Logger.log('Updated Net (col 16) to ' + respData.unit_price)
+    }
+    // When net_price (unit_price) changed, webhook returns new total_price — update Total column O
+    if (field === 'net_price' && respData.total_price !== undefined) {
+      sheet.getRange(row, 15).setValue(respData.total_price)
+      Logger.log('Updated Total (col 15) to ' + respData.total_price)
     }
   } catch(err) {
     Logger.log('Webhook error: ' + err.message)

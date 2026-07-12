@@ -296,13 +296,14 @@ function DashTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     Promise.all([
       fetch('/api/admin/orders?limit=10',   { headers: apiHeaders }).then(r => r.json()),
       fetch('/api/admin/products?limit=1', { headers: apiHeaders }).then(r => r.json()),
-    ]).then(([ord, prod]) => {
+      fetch('/api/admin/orders?stats=true', { headers: apiHeaders }).then(r => r.json()),
+    ]).then(([ord, prod, st]) => {
       const orders: Order[] = ord.orders || []
       setRecent(orders)
       setStats({
         orders:   ord.total   || 0,
         pending:  orders.filter((o:Order) => o.status === 'pending').length,
-        revenue:  orders.reduce((s:number, o:Order) => s + (o.total_price||0), 0),
+        revenue:  st.revenue  || 0,
         products: prod.total  || 0,
       })
     }).finally(() => setLoading(false))
@@ -319,7 +320,7 @@ function DashTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total commandes"   value={stats.orders}   icon={ShoppingBag}   gradient="bg-gradient-to-br from-navy-600 to-navy-800" sub="Toutes les commandes"/>
         <StatCard label="En attente"        value={stats.pending}  icon={Clock}          gradient="bg-gradient-to-br from-amber-500 to-amber-600" sub="À traiter"/>
-        <StatCard label="Chiffre d'affaires" value={`${fmt(stats.revenue)} DA`} icon={DollarSign} gradient="bg-gradient-to-br from-gold-500 to-gold-600" sub="Total des ventes"/>
+        <StatCard label="Chiffre d'affaires" value={`${fmt(stats.revenue)} DA`} icon={DollarSign} gradient="bg-gradient-to-br from-gold-500 to-gold-600" sub="Total des ventes (hors livraison)"/>
         <StatCard label="Produits"          value={stats.products} icon={Package}        gradient="bg-gradient-to-br from-navy-700 to-navy-900" sub="Dans le catalogue"/>
       </div>
 

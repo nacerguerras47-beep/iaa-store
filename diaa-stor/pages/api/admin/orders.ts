@@ -7,7 +7,18 @@ import { sendPurchaseEvent } from '../../../lib/metaConversions'
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
   if (req.method === 'GET') {
-    const { page = '1', limit = '25', status, search } = req.query
+    const { page = '1', limit = '25', status, search, stats } = req.query
+
+    // Stats mode: lightweight aggregate across all orders
+    if (stats === 'true') {
+      const { data: all, error } = await supabaseAdmin
+        .from('orders')
+        .select('total_price, delivery_price')
+      if (error) return res.status(500).json({ error: error.message })
+      const revenue = (all || []).reduce((s: number, o: any) => s + ((Number(o.total_price)||0) - (Number(o.delivery_price)||0)), 0)
+      return res.json({ revenue, count: all?.length || 0 })
+    }
+
     const pageNum  = Math.max(1, parseInt(String(page)))
     const pageSize = Math.min(100, parseInt(String(limit)))
     const from = (pageNum - 1) * pageSize

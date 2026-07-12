@@ -60,6 +60,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ success: true, updated: 0 })
   }
 
+  // Special case: when net_price (unit_price) changes, recalculate total_price and sync back
+  if (field === 'net_price') {
+    const newUnitPrice = Number(value)
+    const { data, error } = await supabaseAdmin.rpc('update_order_unit_price', {
+      p_order_number: order_number,
+      p_new_unit_price: newUnitPrice,
+    })
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    if (data && data.length > 0) {
+      return res.json({ success: true, updated: data.length, total_price: data[0].total_price })
+    }
+
+    return res.json({ success: true, updated: 0 })
+  }
+
   const dbValue = fieldConfig.transform ? fieldConfig.transform(value) : value
   const dbColumn = fieldConfig.dbColumn
 
