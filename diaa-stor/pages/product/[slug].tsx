@@ -461,6 +461,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                     addons={addons}
                     addonQtys={addonQtys}
                     variantPrice={variantPrice}
+                    variantName={selectedVariant?.name ?? null}
                   />
                   <div className="mt-4 text-center">
                     <button onClick={() => setMode('info')}

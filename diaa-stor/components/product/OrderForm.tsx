@@ -47,9 +47,10 @@ interface Props {
   addons?: { id: string; name: string; max_quantity: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]
   addonQtys?: Record<string, number>
   variantPrice?: number | null
+  variantName?: string | null
 }
 
-export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {}, variantPrice = null }: Props) {
+export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {}, variantPrice = null, variantName = null }: Props) {
   const { t } = useTranslation('common')
   const router = useRouter()
   const locale = router.locale || 'fr'
@@ -123,6 +124,7 @@ const onWilayaChange = (code: string) => {
           delivery_price: 0,
           total_price: productTotal + addonsTotal,
           bundle_name: selectedBundle?.name || null,
+          variant_name: variantName || undefined,
           addons: selectedAddons,
         },
         ...cartItems.map(item => {

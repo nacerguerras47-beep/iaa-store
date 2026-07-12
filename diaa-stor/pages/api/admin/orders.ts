@@ -154,9 +154,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Sync price change to Google Sheets (columns O & P)
-    if (total_price !== undefined && delivery_price !== undefined && data?.order_number) {
-      const netPrice = Number(total_price) - Number(delivery_price)
-      try { await updateOrderPriceInSheet(data.order_number, Number(total_price), netPrice) } catch (e) { console.error('Price sync failed:', e) }
+    if (unit_price !== undefined && total_price !== undefined && delivery_price !== undefined && data?.order_number) {
+      try { await updateOrderPriceInSheet(data.order_number, Number(total_price), Number(unit_price)) } catch (e) { console.error('Price sync failed:', e) }
     }
 
     return res.json(data)

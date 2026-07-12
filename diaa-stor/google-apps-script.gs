@@ -31,7 +31,7 @@ function doPost(e) {
       data.phone || '',                                        // C=3: Phone
       data.commune || '',                                      // D=4: Commune
       data.wilaya || '',                                       // E=5: Wilaya
-      data.product_name || '',                                  // F=6: Product
+      (data.product_name || '') + (data.variant_name ? ' — ' + data.variant_name : ''), // F=6: Product + variant
       data.delivery_type === 'domicile' ? 'A domicile' : 'Au bureau', // G=7: Delivery
       '',   // H=8: Livre checkbox
       'En attente',  // I=9: Situation
@@ -41,7 +41,7 @@ function doPost(e) {
       '',   // M=13: Paiement
       data.quantity || 0,  // N=14: Psc (quantity)
       data.total_price || 0,  // O=15: Total
-      (Number(data.total_price) || 0) - (Number(data.delivery_price) || 0), // P=16: Net = total - delivery
+      data.unit_price || 0,  // P=16: Net = unit_price (single product price)
       '',   // Q=17: Agence
       data.order_number || '',  // R=18: N° Code
     ]
@@ -75,7 +75,7 @@ function handleUpdatePrice(data) {
     if (String(orderNumbers[i][0]).trim() === String(data.order_number).trim()) {
       const rowIndex = i + 2
       sheet.getRange(rowIndex, 15).setValue(data.total_price)  // O=15: Total
-      sheet.getRange(rowIndex, 16).setValue(data.net_price)    // P=16: Net
+      sheet.getRange(rowIndex, 16).setValue(data.net_price)    // P=16: Net = unit_price
       return ContentService.createTextOutput(JSON.stringify({success: true, row: rowIndex}))
         .setMimeType(ContentService.MimeType.JSON)
     }
@@ -157,8 +157,10 @@ function sortByNombre(e) {
 }
 
 function syncToAdmin(e) {
+  Logger.log('syncToAdmin: col=' + e.range.getColumn() + ' row=' + e.range.getRow() + ' value=' + e.value + ' old=' + e.oldValue)
+
   var sheet = e.source.getActiveSheet()
-  if (sheet.getName() !== 'Commandes') return
+  if (sheet.getName() !== 'Commandes') { Logger.log('Wrong sheet: ' + sheet.getName()); return }
 
   var COLUMN_MAP = {
     9:  'situation',
@@ -172,22 +174,27 @@ function syncToAdmin(e) {
 
   var col = e.range.getColumn()
   var field = COLUMN_MAP[col]
-  if (!field) return
+  if (!field) { Logger.log('Column ' + col + ' not in map'); return }
 
-  if (e.oldValue !== undefined && e.oldValue === e.value) return
+  if (e.oldValue !== undefined && e.oldValue === e.value) { Logger.log('Same value, skipping'); return }
 
   var row = e.range.getRow()
-  if (row < 2) return
+  if (row < 2) { Logger.log('Header row, skipping'); return }
 
   var orderNumber = sheet.getRange(row, 18).getValue()
-  if (!orderNumber) return
+  Logger.log('orderNumber=' + orderNumber)
+  if (!orderNumber) { Logger.log('No order number, skipping'); return }
 
   var value = e.value
-  if (value === undefined || value === null) return
+  if (value === undefined || value === null) { Logger.log('No value, skipping'); return }
+  if (value === '') { Logger.log('Empty value, skipping'); return }
 
   if (col === 10 || col === 15 || col === 16) {
-    value = Number(value)
+    value = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value)
   }
+  if (isNaN(value)) { Logger.log('NaN value, skipping'); return }
+
+  Logger.log('Sending: field=' + field + ' value=' + value + ' order=' + String(orderNumber).trim())
 
   var payload = {
     secret: WEBHOOK_SECRET,
@@ -204,6 +211,12 @@ function syncToAdmin(e) {
       muteHttpExceptions: true,
     })
     Logger.log('Webhook response: ' + resp.getContentText())
+    var respData = JSON.parse(resp.getContentText())
+    // When total_price changed, webhook returns new unit_price — update Net column P
+    if (field === 'total_price' && respData.unit_price !== undefined) {
+      sheet.getRange(row, 16).setValue(respData.unit_price)
+      Logger.log('Updated Net (col 16) to ' + respData.unit_price)
+    }
   } catch(err) {
     Logger.log('Webhook error: ' + err.message)
   }
