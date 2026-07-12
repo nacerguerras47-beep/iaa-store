@@ -1074,8 +1074,15 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     const d = await r.json()
     setOrders(d.orders || [])
     setTotal(d.total || 0)
+    // Refresh priceEdits for expanded order with latest server data
+    if (expanded) {
+      const updated = (d.orders || []).find((o: any) => o.id === expanded)
+      if (updated) {
+        setPriceEdits(prev => ({ ...prev, [expanded]: { unit_price: String(updated.unit_price ?? ''), delivery_price: String(updated.delivery_price ?? '') } }))
+      }
+    }
     setLoading(false)
-  }, [page, search, statusF, apiHeaders])
+  }, [page, search, statusF, apiHeaders, expanded])
 
   useEffect(() => { load() }, [load])
 
