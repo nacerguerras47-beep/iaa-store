@@ -1102,6 +1102,9 @@ function OrdTab({ apiHeaders }: { apiHeaders: Record<string, string> }) {
     if (r.ok) {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o))
       toast.success('Mis à jour')
+    } else {
+      const err = await r.json().catch(() => ({ error: 'Erreur inconnue' }))
+      toast.error(err.error || 'Erreur lors de la mise à jour')
     }
   }
 

@@ -89,7 +89,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       if (status === 'confirmed' && prevStatus !== 'confirmed') {
         if (currentOrder.variant_name) {
-          // Find variant by name on the product and decrement its stock
           const { data: variant } = await supabaseAdmin
             .from('product_variants')
             .select('id')
@@ -103,12 +102,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               qty,
             })
             if (vErr) console.error('Variant stock decrement failed:', vErr.message)
+          } else {
+            console.warn(`Variant "${currentOrder.variant_name}" not found for product ${currentOrder.product_id}, falling back to product stock`)
+            const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', { pid: currentOrder.product_id, qty })
+            if (stockErr) console.error('Stock decrement failed:', stockErr.message)
           }
         } else {
-          const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', {
-            pid: currentOrder.product_id,
-            qty,
-          })
+          const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', { pid: currentOrder.product_id, qty })
           if (stockErr) console.error('Stock decrement failed:', stockErr.message)
         }
       } else if (status === 'cancelled' && prevStatus === 'confirmed') {
@@ -126,15 +126,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               qty,
             })
             if (vErr) console.error('Variant stock restore failed:', vErr.message)
+          } else {
+            console.warn(`Variant "${currentOrder.variant_name}" not found, falling back to product stock restore`)
+            const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', { pid: currentOrder.product_id, qty })
+            if (stockErr) console.error('Stock restore failed:', stockErr.message)
           }
         } else {
-          const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', {
-            pid: currentOrder.product_id,
-            qty,
-          })
+          const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', { pid: currentOrder.product_id, qty })
           if (stockErr) console.error('Stock restore failed:', stockErr.message)
         }
       }
+    } else if (status !== undefined && status !== prevStatus && !currentOrder?.product_id) {
+      console.warn(`Stock management skipped: order ${id} has no product_id`)
     }
 
     // ── Meta Conversions API Purchase event ──
