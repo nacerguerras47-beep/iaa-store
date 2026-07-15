@@ -21,6 +21,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       name: a.name,
       max_quantity: a.max_quantity,
       is_active: a.is_active,
+      stock: a.stock ?? 0,
       tiers: (a.product_addon_tiers || []).map((t: any) => ({
         id: t.id,
         min_quantity: t.min_quantity,

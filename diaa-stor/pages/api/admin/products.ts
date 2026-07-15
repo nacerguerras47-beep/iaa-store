@@ -71,6 +71,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             name: a.name,
             max_quantity: Number(a.max_quantity) || 1,
             is_active: a.is_active !== false,
+            stock: Math.max(0, Number(a.stock) || 0),
           })
           .select()
           .single()
@@ -151,15 +152,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (Array.isArray(addons)) {
       await supabaseAdmin.from('product_addons').delete().eq('product_id', id)
       if (addons.length > 0) {
-        await Promise.all(addons.map(async (a: any) => {
-          const { data: addon } = await supabaseAdmin
-            .from('product_addons')
-            .insert({
-              product_id: id,
-              name: a.name,
-              max_quantity: Number(a.max_quantity) || 1,
-              is_active: a.is_active !== false,
-            })
+          await Promise.all(addons.map(async (a: any) => {
+            const { data: addon } = await supabaseAdmin
+              .from('product_addons')
+              .insert({
+                product_id: id,
+                name: a.name,
+                max_quantity: Number(a.max_quantity) || 1,
+                is_active: a.is_active !== false,
+                stock: Math.max(0, Number(a.stock) || 0),
+              })
             .select()
             .single()
 

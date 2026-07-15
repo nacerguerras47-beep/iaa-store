@@ -44,7 +44,7 @@ interface Props {
   selectedBundleIdx?: number | null
   onSelectBundle?: (idx: number | null) => void
   extraUnitPrice?: number | null
-  addons?: { id: string; name: string; max_quantity: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]
+  addons?: { id: string; name: string; max_quantity: number; stock: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]
   addonQtys?: Record<string, number>
   variantPrice?: number | null
   variantName?: string | null
@@ -113,7 +113,7 @@ const onWilayaChange = (code: string) => {
     try {
       const selectedAddons = addons.filter(a => (addonQtys[a.id] || 0) > 0).map(a => {
         const { price_per_unit, total } = computeAddonTotal(a.tiers, addonQtys[a.id])
-        return { name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
+        return { id: a.id, name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
       })
     const itemsPayload = [
         {

@@ -25,7 +25,7 @@ function fmt(n: number): string {
 }
 
 
-export default function ProductPage({ product, addons, deliveryPrices }: { product: Product; addons: { id: string; name: string; max_quantity: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]; deliveryPrices: { home:number; office:number } }) {
+export default function ProductPage({ product, addons, deliveryPrices }: { product: Product; addons: { id: string; name: string; max_quantity: number; stock: number; tiers: { min_quantity: number; price_per_unit: number }[] }[]; deliveryPrices: { home:number; office:number } }) {
   const { t } = useTranslation('common')
   const { addToCart, isInCart } = useCart()
   const [imgIdx, setImgIdx] = useState(0)
@@ -76,7 +76,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
     }
     const selectedAddons = addons.filter(a => (addonQtys[a.id] || 0) > 0).map(a => {
       const { price_per_unit, total } = computeAddonTotal(a.tiers, addonQtys[a.id])
-      return { name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
+      return { id: a.id, name: a.name, quantity: addonQtys[a.id], price_per_unit, total }
     })
     const vName = selectedVariant?.name || undefined
     addToCart({
@@ -348,23 +348,30 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t('addonsTitle') || 'Ajouts optionnels'}</div>
                   {addons.map(a => {
                     const qty = addonQtys[a.id] || 0
+                    const outOfStock = a.stock !== undefined && a.stock <= 0
+                    const maxQty = a.stock !== undefined ? Math.min(a.max_quantity, a.stock) : a.max_quantity
                     return (
-                      <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div key={a.id} className={`flex items-center justify-between p-3 rounded-xl border ${outOfStock ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-700'}`}>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium text-slate-800 dark:text-white">{a.name}</span>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {a.tiers.map((t, ti, arr) => (
-                              <span key={ti}>
-                                {ti > 0 && ' · '}
-                                {t.min_quantity}{ti < arr.length - 1 ? `–${arr[ti + 1].min_quantity - 1}` : '+'}: {fmt(t.price_per_unit)} DA
-                              </span>
-                            ))}
-                          </div>
-                          {qty > 0 && (() => {
+                          {outOfStock ? (
+                            <div className="text-xs text-red-500 font-semibold mt-0.5">Rupture de stock</div>
+                          ) : (
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {a.tiers.map((t, ti, arr) => (
+                                <span key={ti}>
+                                  {ti > 0 && ' · '}
+                                  {t.min_quantity}{ti < arr.length - 1 ? `–${arr[ti + 1].min_quantity - 1}` : '+'}: {fmt(t.price_per_unit)} DA
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {qty > 0 && !outOfStock && (() => {
                             const { price_per_unit } = computeAddonTotal(a.tiers, qty)
                             return <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{fmt(price_per_unit)} DA/u × {qty} = {fmt(price_per_unit * qty)} DA</span>
                           })()}
                         </div>
+                        {!outOfStock && (
                         <div className="flex items-center gap-2">
                           <button type="button" onClick={() => setAddonQtys(p => ({ ...p, [a.id]: Math.max(0, qty - 1) }))}
                             className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-500 hover:border-navy-400 transition-all disabled:opacity-30"
@@ -372,12 +379,13 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                             <Minus size={11} />
                           </button>
                           <span className="w-6 text-center font-bold text-sm text-slate-800 dark:text-white">{qty}</span>
-                          <button type="button" onClick={() => setAddonQtys(p => ({ ...p, [a.id]: Math.min(a.max_quantity, qty + 1) }))}
+                          <button type="button" onClick={() => setAddonQtys(p => ({ ...p, [a.id]: Math.min(maxQty, qty + 1) }))}
                             className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-500 hover:border-navy-400 transition-all disabled:opacity-30"
-                            disabled={qty >= a.max_quantity}>
+                            disabled={qty >= maxQty}>
                             <Plus size={11} />
                           </button>
                         </div>
+                        )}
                       </div>
                     )
                   })}
@@ -503,7 +511,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, locale })
         .in('key', ['delivery_home_price', 'delivery_office_price']),
       supabase
         .from('product_addons')
-        .select('id, name, max_quantity, tiers:product_addon_tiers(min_quantity, price_per_unit)')
+        .select('id, name, max_quantity, stock, tiers:product_addon_tiers(min_quantity, price_per_unit)')
         .eq('product_id', product.id)
         .eq('is_active', true),
     ])

@@ -27,7 +27,7 @@ export interface CartItem {
   base_price?: number
   base_promo_price?: number | null
   extra_unit_price?: number | null
-  addons?: { name: string; quantity: number; price_per_unit: number; total?: number }[]
+  addons?: { id: string; name: string; quantity: number; price_per_unit: number; total?: number }[]
   variant_name?: string
   variant_price?: number
 }

@@ -18,7 +18,7 @@ interface Product {
   id: string; name: string; slug: string; description?: string
   price: number; promo_price?: number | null; images: string[]
   category?: string; stock: number; is_visible: boolean; is_new?: boolean
-  has_bundles?: boolean; bundles?: { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null; variant_id?: string | null }[]; extra_unit_price?: number | null
+  has_bundles?: boolean; has_addons?: boolean; bundles?: { name: string; price: number; quantity_trigger?: number | null; discount_percent?: number | null; variant_id?: string | null }[]; extra_unit_price?: number | null
   variants?: { id: string; name: string; price: number; promo_price?: number | null; stock: number; is_active: boolean }[]
   created_at: string
 }
@@ -569,10 +569,10 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
     is_visible:  product?.is_visible  !== false,
     is_new:      product?.is_new      || false,
     has_bundles: product?.has_bundles || false,
-    has_addons: false,
+    has_addons:  product?.has_addons  || false,
     bundles:     product?.bundles     || [],
     extra_unit_price: product?.extra_unit_price ?? null,
-    addons: [] as { name: string; max_quantity: number; is_active: boolean; tiers: { min_quantity: number; price_per_unit: number }[] }[],
+    addons: [] as { name: string; max_quantity: number; is_active: boolean; stock: number; tiers: { min_quantity: number; price_per_unit: number }[] }[],
     has_variants: product?.variants && product.variants.length > 0 ? true : false,
     variants: (product?.variants || []).map((v: any) => ({
       name: v.name || '',
@@ -605,6 +605,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
             name: a.name,
             max_quantity: a.max_quantity,
             is_active: a.is_active !== false,
+            stock: a.stock ?? 0,
             tiers: (a.tiers || []).map((t: any) => ({ min_quantity: t.min_quantity, price_per_unit: Number(t.price_per_unit) })),
           })) }))
           }
@@ -655,6 +656,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
       is_visible:  form.is_visible,
       is_new:      form.is_new,
       has_bundles: form.has_bundles,
+      has_addons:  form.has_addons,
       bundles:     form.bundles,
       extra_unit_price: form.extra_unit_price,
       addons:      form.addons,
@@ -873,7 +875,7 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                 </button>
               </div>
               {form.has_addons && (
-              <button type="button" onClick={() => setForm(f => ({ ...f, addons: [...f.addons, { name: '', max_quantity: 1, is_active: true, tiers: [{ min_quantity: 1, price_per_unit: 0 }] }] }))}
+              <button type="button" onClick={() => setForm(f => ({ ...f, addons: [...f.addons, { name: '', max_quantity: 1, is_active: true, stock: 0, tiers: [{ min_quantity: 1, price_per_unit: 0 }] }] }))}
                 className="btn-ghost text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1">
                 <Plus size={12}/> Ajouter un ajout
               </button>
@@ -905,6 +907,14 @@ function ProductFormModal({ product, apiHeaders, onClose, onSaved }: {
                       arr[i] = { ...arr[i], max_quantity: Math.max(1, Number(e.target.value)) }
                       setForm(f => ({ ...f, addons: arr }))
                     }} className="input-field text-sm py-2" min="1" placeholder="5"/>
+                  </div>
+                  <div className="w-20">
+                    <label className="text-[10px] text-slate-400 font-medium">Stock</label>
+                    <input type="number" value={a.stock ?? ''} onChange={e => {
+                      const arr = [...form.addons]
+                      arr[i] = { ...arr[i], stock: Math.max(0, Number(e.target.value)) }
+                      setForm(f => ({ ...f, addons: arr }))
+                    }} className="input-field text-sm py-2" min="0" placeholder="0"/>
                   </div>
                   <button type="button" onClick={() => setForm(f => ({ ...f, addons: f.addons.filter((_, idx) => idx !== i) }))}
                     className="w-9 h-9 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 flex items-center justify-center text-red-500 transition-colors flex-shrink-0">

@@ -59,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Fetch current order to detect status transition for stock management
     const { data: currentOrder, error: fetchErr } = await supabaseAdmin
       .from('orders')
-      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number')
+      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number, addons')
       .eq('id', id)
       .single()
 
@@ -138,6 +138,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     } else if (status !== undefined && status !== prevStatus && !currentOrder?.product_id) {
       console.warn(`Stock management skipped: order ${id} has no product_id`)
+    }
+
+    // ── Addon stock management ──
+    if (status !== undefined && status !== prevStatus && Array.isArray(currentOrder?.addons) && currentOrder.addons.length > 0) {
+      for (const addon of currentOrder.addons) {
+        if (!addon.id) continue
+        const aQty = Number(addon.quantity) || 0
+        if (aQty <= 0) continue
+
+        if (status === 'confirmed' && prevStatus !== 'confirmed') {
+          const { error: aErr } = await supabaseAdmin.rpc('decrement_addon_stock', { pid: addon.id, qty: aQty })
+          if (aErr) console.error(`Addon stock decrement failed for ${addon.name} (${addon.id}):`, aErr.message)
+        } else if (status === 'cancelled' && prevStatus === 'confirmed') {
+          const { error: aErr } = await supabaseAdmin.rpc('increment_addon_stock', { pid: addon.id, qty: aQty })
+          if (aErr) console.error(`Addon stock restore failed for ${addon.name} (${addon.id}):`, aErr.message)
+        }
+      }
     }
 
     // ── Meta Conversions API Purchase event ──
