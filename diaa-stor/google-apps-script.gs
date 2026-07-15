@@ -31,7 +31,9 @@ function doPost(e) {
       data.phone || '',                                        // C=3: Phone
       data.commune || '',                                      // D=4: Commune
       data.wilaya || '',                                       // E=5: Wilaya
-      (data.product_name || '') + (data.variant_name ? ' — ' + data.variant_name : ''), // F=6: Product + variant
+      (data.variant_name
+        ? (data.product_name || '') + ' — ' + data.variant_name + ' × ' + (data.quantity || 0)
+        : (data.product_name || '') + ' × ' + (data.quantity || 0)), // F=6: Product + variant + quantity
       data.delivery_type === 'domicile' ? 'A domicile' : 'Au bureau', // G=7: Delivery
       '',   // H=8: Livre checkbox
       'En attente',  // I=9: Situation

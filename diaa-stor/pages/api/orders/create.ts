@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     unit_price, delivery_price, total_price,
     last_name, first_name, phone,
     address, wilaya, commune, delivery_type,
-    bundle_name,
+    bundle_name, variant_name, addons,
   } = req.body
 
   // ── Validation ──
@@ -62,6 +62,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     commune:       String(commune).trim(),
     delivery_type: String(delivery_type),
     bundle_name:   bundle_name ? String(bundle_name).trim() : null,
+    variant_name:  variant_name ? String(variant_name).trim() : null,
+    addons:        Array.isArray(addons) ? addons : [],
     status:        'pending',
     created_at:    now,
   }
