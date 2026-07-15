@@ -27,7 +27,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // POST — create product
   if (req.method === 'POST') {
-    const { name, description, price, promo_price, images, category, stock, is_visible, is_new, has_bundles, bundles, extra_unit_price, addons, variants } = req.body
+    const { name, description, price, promo_price, images, category, stock, is_visible, is_new, has_bundles, has_addons, bundles, extra_unit_price, addons, variants } = req.body
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Nom et prix sont requis' })
     }
@@ -52,6 +52,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         is_visible:  is_visible !== false,
         is_new:      Boolean(is_new),
         has_bundles: Boolean(has_bundles),
+        has_addons:  Boolean(has_addons),
         bundles:     [],
         extra_unit_price: extra_unit_price != null ? Number(extra_unit_price) : null,
         slug,
