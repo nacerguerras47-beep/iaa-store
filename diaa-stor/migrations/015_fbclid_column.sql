@@ -1,0 +1,2 @@
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fbclid text DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fbclid_captured_at bigint DEFAULT NULL;

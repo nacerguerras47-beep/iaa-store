@@ -3,7 +3,7 @@ import { ThemeProvider } from 'next-themes'
 import { Toaster } from 'react-hot-toast'
 import { appWithTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Head from 'next/head'
 import { CartProvider } from '../context/CartContext'
 import '../styles/globals.css'
@@ -23,6 +23,24 @@ function App({ Component, pageProps }: AppProps) {
     document.documentElement.dir  = isRTL ? 'rtl' : 'ltr'
     document.documentElement.lang = locale || 'fr'
   }, [locale])
+
+  // Capture fbclid from URL and store fbclid|timestamp in cookie for 7 days
+  const fbclidCaptured = useRef(false)
+  useEffect(() => {
+    if (fbclidCaptured.current) return
+    const params = new URLSearchParams(window.location.search)
+    const fbclid = params.get('fbclid')
+    if (fbclid) {
+      const existing = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('_fbc_captured='))
+      const newValue = `${fbclid}|${Date.now()}`
+      if (!existing || decodeURIComponent(existing.split('=')[1]) !== newValue) {
+        document.cookie = `_fbc_captured=${encodeURIComponent(newValue)}; max-age=604800; path=/; SameSite=Lax`
+      }
+      fbclidCaptured.current = true
+    }
+  }, [])
 
   return (
     /*

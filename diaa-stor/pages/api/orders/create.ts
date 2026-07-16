@@ -46,6 +46,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const now = new Date().toISOString()
   const order_number = generateOrderNumber()
 
+  const rawCookie = req.cookies?.['_fbc_captured']
+  let fbclid: string | null = null
+  let fbclidCapturedAt: number | null = null
+  if (rawCookie) {
+    const decoded = decodeURIComponent(rawCookie)
+    const sepIdx = decoded.lastIndexOf('|')
+    if (sepIdx !== -1) {
+      fbclid = decoded.slice(0, sepIdx)
+      fbclidCapturedAt = Number(decoded.slice(sepIdx + 1)) || null
+    } else {
+      fbclid = decoded
+    }
+  }
+
   const orderPayload = {
     order_number,
     product_id:    String(product_id),
@@ -64,6 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     bundle_name:   bundle_name ? String(bundle_name).trim() : null,
     variant_name:  variant_name ? String(variant_name).trim() : null,
     addons:        Array.isArray(addons) ? addons : [],
+    fbclid:        fbclid,
+    fbclid_captured_at: fbclidCapturedAt,
     status:        'pending',
     created_at:    now,
   }

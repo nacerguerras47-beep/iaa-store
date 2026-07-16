@@ -401,7 +401,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
               {product.description && (
                 <div dir="rtl" className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 mb-5 border border-slate-100 dark:border-slate-700">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 text-right">{t('description')}</div>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{product.description}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap text-right" style={{ direction: 'rtl', textAlign: 'right' }}>{product.description}</p>
                 </div>
               )}
 

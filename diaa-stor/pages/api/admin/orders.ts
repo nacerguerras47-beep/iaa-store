@@ -59,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Fetch current order to detect status transition for stock management
     const { data: currentOrder, error: fetchErr } = await supabaseAdmin
       .from('orders')
-      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number, addons')
+      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number, addons, fbclid, fbclid_captured_at')
       .eq('id', id)
       .single()
 
@@ -159,11 +159,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // ── Meta Conversions API Purchase event ──
     if (status === 'confirmed' && status !== prevStatus && currentOrder?.phone && currentOrder?.total_price) {
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        || req.socket?.remoteAddress || null
+      const clientUA = (req.headers['user-agent'] as string) || null
+
       sendPurchaseEvent({
         order_number: currentOrder.order_number || '',
         phone: currentOrder.phone,
         total: Number(currentOrder.total_price),
         product_name: currentOrder.product_name || '',
+        fbclid: currentOrder.fbclid || null,
+        fbclid_captured_at: currentOrder.fbclid_captured_at || null,
+        client_ip_address: clientIp,
+        client_user_agent: clientUA,
       }).catch(e => console.error('[MetaCAPI] sendPurchaseEvent failed:', e))
     }
 
