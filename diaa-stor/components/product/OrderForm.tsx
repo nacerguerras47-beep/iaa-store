@@ -48,9 +48,10 @@ interface Props {
   addonQtys?: Record<string, number>
   variantPrice?: number | null
   variantName?: string | null
+  variantId?: string | null
 }
 
-export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {}, variantPrice = null, variantName = null }: Props) {
+export default function OrderForm({ product, deliveryPrices, initialQty = 1, selectedBundle, onSuccess, bundles, selectedBundleIdx, onSelectBundle, extraUnitPrice = null, addons = [], addonQtys = {}, variantPrice = null, variantName = null, variantId = null }: Props) {
   const { t } = useTranslation('common')
   const router = useRouter()
   const locale = router.locale || 'fr'
@@ -125,6 +126,7 @@ const onWilayaChange = (code: string) => {
           total_price: productTotal + addonsTotal,
           bundle_name: selectedBundle?.name || null,
           variant_name: variantName || undefined,
+          variant_id: variantId || undefined,
           addons: selectedAddons,
         },
         ...cartItems.map(item => {
@@ -138,6 +140,7 @@ const onWilayaChange = (code: string) => {
             delivery_price: 0,
             total_price: itemTotal,
             variant_name: item.variant_name || undefined,
+            variant_id: item.variant_id || undefined,
           }
         }),
       ]

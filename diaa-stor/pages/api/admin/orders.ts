@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 import { withAdminAuth } from '../../../lib/adminAuth'
 import { updateOrderNombreInSheet, updateOrderPriceInSheet, updateOrderStatusInSheet } from '../../../lib/googleSheets'
-import { sendPurchaseEvent } from '../../../lib/metaConversions'
+import { handleOrderConfirmed, handleOrderCancelled } from '../../../lib/orderConfirmation'
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // GET — list orders
@@ -48,20 +48,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // PUT — update order (status, nombre, prices)
   if (req.method === 'PUT') {
-    const { id, status, nombre, unit_price, delivery_price, total_price } = req.body
-    if (!id) return res.status(400).json({ error: 'ID requis' })
+    const { id, order_number, status, nombre, unit_price, delivery_price, total_price } = req.body
+    const lookupId = id || order_number
+    if (!lookupId) return res.status(400).json({ error: 'ID ou order_number requis' })
 
     const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Statut invalide' })
     }
 
-    // Fetch current order to detect status transition for stock management
-    const { data: currentOrder, error: fetchErr } = await supabaseAdmin
+    // Fetch current order — by id or order_number
+    let query = supabaseAdmin
       .from('orders')
-      .select('id, status, product_id, quantity, variant_name, phone, total_price, product_name, order_number, addons, fbclid, fbclid_captured_at')
-      .eq('id', id)
-      .single()
+      .select('id, status, product_id, quantity, variant_name, variant_id, phone, total_price, product_name, order_number, addons, fbclid, fbclid_captured_at')
+    if (id) {
+      query = query.eq('id', id)
+    } else {
+      query = query.eq('order_number', order_number)
+    }
+    const { data: currentOrder, error: fetchErr } = await query.single()
 
     if (fetchErr) return res.status(500).json({ error: fetchErr.message })
 
@@ -77,102 +82,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { data, error } = await supabaseAdmin
       .from('orders')
       .update(updates)
-      .eq('id', id)
+      .eq('id', currentOrder.id)
       .select()
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
 
-    // ── Stock management on status transition ──
-    if (status !== undefined && status !== prevStatus && currentOrder?.product_id) {
-      const qty = currentOrder.quantity || 0
-
-      if (status === 'confirmed' && prevStatus !== 'confirmed') {
-        if (currentOrder.variant_name) {
-          const { data: variant } = await supabaseAdmin
-            .from('product_variants')
-            .select('id')
-            .eq('product_id', currentOrder.product_id)
-            .eq('name', currentOrder.variant_name)
-            .maybeSingle()
-
-          if (variant) {
-            const { error: vErr } = await supabaseAdmin.rpc('decrement_variant_stock', {
-              pid: variant.id,
-              qty,
-            })
-            if (vErr) console.error('Variant stock decrement failed:', vErr.message)
-          } else {
-            console.warn(`Variant "${currentOrder.variant_name}" not found for product ${currentOrder.product_id}, falling back to product stock`)
-            const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', { pid: currentOrder.product_id, qty })
-            if (stockErr) console.error('Stock decrement failed:', stockErr.message)
-          }
-        } else {
-          const { error: stockErr } = await supabaseAdmin.rpc('decrement_stock', { pid: currentOrder.product_id, qty })
-          if (stockErr) console.error('Stock decrement failed:', stockErr.message)
-        }
-      } else if (status === 'cancelled' && prevStatus === 'confirmed') {
-        if (currentOrder.variant_name) {
-          const { data: variant } = await supabaseAdmin
-            .from('product_variants')
-            .select('id')
-            .eq('product_id', currentOrder.product_id)
-            .eq('name', currentOrder.variant_name)
-            .maybeSingle()
-
-          if (variant) {
-            const { error: vErr } = await supabaseAdmin.rpc('increment_variant_stock', {
-              pid: variant.id,
-              qty,
-            })
-            if (vErr) console.error('Variant stock restore failed:', vErr.message)
-          } else {
-            console.warn(`Variant "${currentOrder.variant_name}" not found, falling back to product stock restore`)
-            const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', { pid: currentOrder.product_id, qty })
-            if (stockErr) console.error('Stock restore failed:', stockErr.message)
-          }
-        } else {
-          const { error: stockErr } = await supabaseAdmin.rpc('increment_stock', { pid: currentOrder.product_id, qty })
-          if (stockErr) console.error('Stock restore failed:', stockErr.message)
-        }
-      }
-    } else if (status !== undefined && status !== prevStatus && !currentOrder?.product_id) {
-      console.warn(`Stock management skipped: order ${id} has no product_id`)
-    }
-
-    // ── Addon stock management ──
-    if (status !== undefined && status !== prevStatus && Array.isArray(currentOrder?.addons) && currentOrder.addons.length > 0) {
-      for (const addon of currentOrder.addons) {
-        if (!addon.id) continue
-        const aQty = Number(addon.quantity) || 0
-        if (aQty <= 0) continue
-
-        if (status === 'confirmed' && prevStatus !== 'confirmed') {
-          const { error: aErr } = await supabaseAdmin.rpc('decrement_addon_stock', { pid: addon.id, qty: aQty })
-          if (aErr) console.error(`Addon stock decrement failed for ${addon.name} (${addon.id}):`, aErr.message)
-        } else if (status === 'cancelled' && prevStatus === 'confirmed') {
-          const { error: aErr } = await supabaseAdmin.rpc('increment_addon_stock', { pid: addon.id, qty: aQty })
-          if (aErr) console.error(`Addon stock restore failed for ${addon.name} (${addon.id}):`, aErr.message)
-        }
-      }
-    }
-
-    // ── Meta Conversions API Purchase event ──
-    if (status === 'confirmed' && status !== prevStatus && currentOrder?.phone && currentOrder?.total_price) {
+    // ── Confirmed → all side effects via shared function ──
+    if (status === 'confirmed' && status !== prevStatus) {
       const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
         || req.socket?.remoteAddress || null
       const clientUA = (req.headers['user-agent'] as string) || null
+      await handleOrderConfirmed(currentOrder.id, { clientIp, clientUA })
+    }
 
-      sendPurchaseEvent({
-        order_number: currentOrder.order_number || '',
-        phone: currentOrder.phone,
-        total: Number(currentOrder.total_price),
-        product_name: currentOrder.product_name || '',
-        fbclid: currentOrder.fbclid || null,
-        fbclid_captured_at: currentOrder.fbclid_captured_at || null,
-        client_ip_address: clientIp,
-        client_user_agent: clientUA,
-      }).catch(e => console.error('[MetaCAPI] sendPurchaseEvent failed:', e))
+    // ── Stock restore on cancellation ──
+    if (status === 'cancelled' && prevStatus === 'confirmed') {
+      await handleOrderCancelled(currentOrder.id)
     }
 
     // Sync status change to Google Sheets (column I — Situation)

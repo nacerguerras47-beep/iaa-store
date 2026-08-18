@@ -101,6 +101,7 @@ export default function CartPage() {
             total_price: itemGrandTotal,
             addons: item.addons || [],
             variant_name: item.variant_name || undefined,
+            variant_id: item.variant_id || undefined,
           }
         })
         const totalDelivery = deliveryCost

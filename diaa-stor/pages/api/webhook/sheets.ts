@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabaseAdmin } from '../../../lib/supabaseAdmin'
+import { handleOrderConfirmed, handleOrderCancelled } from '../../../lib/orderConfirmation'
 
 const STATUS_MAP: Record<string, string> = {
   'En attente': 'pending',
@@ -79,6 +80,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const dbValue = fieldConfig.transform ? fieldConfig.transform(value) : value
   const dbColumn = fieldConfig.dbColumn
+
+  // Special case: status → "confirmed" triggers full side effects
+  if (field === 'situation' && dbValue === 'confirmed') {
+    const { data: existing } = await supabaseAdmin
+      .from('orders')
+      .select('id, status')
+      .eq('order_number', order_number)
+      .single()
+
+    if (!existing) return res.status(500).json({ error: 'Order not found' })
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('orders')
+      .update({ [dbColumn]: dbValue, updated_at: new Date().toISOString() })
+      .eq('order_number', order_number)
+      .select()
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    if (existing.status !== 'confirmed') {
+      await handleOrderConfirmed(existing.id)
+    }
+
+    return res.json({ success: true, updated: updated?.length || 0 })
+  }
+
+  // Special case: status → "cancelled" restores stock (only if it was confirmed)
+  if (field === 'situation' && dbValue === 'cancelled') {
+    const { data: existing } = await supabaseAdmin
+      .from('orders')
+      .select('id, status')
+      .eq('order_number', order_number)
+      .single()
+
+    if (!existing) return res.status(500).json({ error: 'Order not found' })
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('orders')
+      .update({ [dbColumn]: dbValue, updated_at: new Date().toISOString() })
+      .eq('order_number', order_number)
+      .select()
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    if (existing.status === 'confirmed') {
+      await handleOrderCancelled(existing.id)
+    }
+
+    return res.json({ success: true, updated: updated?.length || 0 })
+  }
 
   const { data, error } = await supabaseAdmin
     .from('orders')

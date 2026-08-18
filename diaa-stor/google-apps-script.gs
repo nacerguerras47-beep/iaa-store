@@ -1,5 +1,15 @@
 var WEBHOOK_URL = 'https://diaa-store.vercel.app/api/webhook/sheets'
 var WEBHOOK_SECRET = 'db2431fe9399448a9bcddb81d26b3b6ba3badbfdf5ea69c1'
+var ADMIN_API_URL = 'https://diaa-store.vercel.app/api/admin/orders'
+var ADMIN_API_KEY = 'your-admin-password-here'  // ← ضع نفس قيمة ADMIN_PASSWORD من Vercel env
+
+var STATUS_MAP = {
+  'En attente': 'pending',
+  'Confirmé': 'confirmed',
+  'Expédié': 'shipped',
+  'Livré': 'delivered',
+  'Annulé': 'cancelled',
+}
 
 function doPost(e) {
   try {
@@ -191,6 +201,37 @@ function syncToAdmin(e) {
   if (value === undefined || value === null) { Logger.log('No value, skipping'); return }
   if (value === '') { Logger.log('Empty value, skipping'); return }
 
+  // ── Situation (status) → call admin API for full processing ──
+  if (field === 'situation') {
+    // Cache guard: prevent infinite loop when admin API writes back to sheet
+    var cache = CacheService.getScriptCache()
+    var cacheKey = 'sync_status_' + String(orderNumber).trim()
+    var cached = cache.get(cacheKey)
+    if (cached === value) { Logger.log('Status already synced (cache hit), skipping'); return }
+    cache.put(cacheKey, value, 30)
+
+    var apiStatus = STATUS_MAP[value] || value
+    Logger.log('Calling admin API: order=' + String(orderNumber).trim() + ' status=' + apiStatus)
+    var adminPayload = {
+      order_number: String(orderNumber).trim(),
+      status: apiStatus,
+    }
+    try {
+      var adminResp = UrlFetchApp.fetch(ADMIN_API_URL, {
+        method: 'put',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + ADMIN_API_KEY },
+        payload: JSON.stringify(adminPayload),
+        muteHttpExceptions: true,
+      })
+      Logger.log('Admin API response: ' + adminResp.getContentText())
+    } catch(err) {
+      Logger.log('Admin API error: ' + err.message)
+    }
+    return
+  }
+
+  // ── Other fields → existing webhook flow ──
   if (col === 10 || col === 15 || col === 16) {
     value = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value)
     if (isNaN(value)) { Logger.log('NaN value, skipping'); return }
@@ -214,12 +255,10 @@ function syncToAdmin(e) {
     })
     Logger.log('Webhook response: ' + resp.getContentText())
     var respData = JSON.parse(resp.getContentText())
-    // When total_price changed, webhook returns new unit_price — update Net column P
     if (field === 'total_price' && respData.unit_price !== undefined) {
       sheet.getRange(row, 16).setValue(respData.unit_price)
       Logger.log('Updated Net (col 16) to ' + respData.unit_price)
     }
-    // When net_price (unit_price) changed, webhook returns new total_price — update Total column O
     if (field === 'net_price' && respData.total_price !== undefined) {
       sheet.getRange(row, 15).setValue(respData.total_price)
       Logger.log('Updated Total (col 15) to ' + respData.total_price)

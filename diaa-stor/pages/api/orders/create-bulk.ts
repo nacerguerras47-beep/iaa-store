@@ -80,6 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       delivery_type: String(delivery_type),
       bundle_name:   item.bundle_name ? String(item.bundle_name).trim() : null,
       variant_name:  item.variant_name ? String(item.variant_name).trim() : null,
+      variant_id:    item.variant_id || null,
       addons:        Array.isArray(item.addons) ? item.addons : [],
       fbclid:        fbclidGlobal,
       fbclid_captured_at: fbclidCapturedAt,

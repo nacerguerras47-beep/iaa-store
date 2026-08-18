@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GetServerSideProps } from 'next'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -29,12 +29,19 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const { t } = useTranslation('common')
   const { addToCart, isInCart } = useCart()
   const [imgIdx, setImgIdx] = useState(0)
-  const [mode, setMode] = useState<'info' | 'order'>('info')
+  const [mode, setMode] = useState<'info' | 'order'>('order')
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [orderNumbers, setOrderNumbers] = useState<string[]>([])
   const [addonQtys, setAddonQtys] = useState<Record<string, number>>({})
   const [qty, setQty] = useState(1)
   const inCart = isInCart(product.id)
+  const orderFormRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (orderFormRef.current) {
+      orderFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
 
   const hasPromo = product.promo_price && product.promo_price < product.price
   const activeVariants = (product.variants || []).filter(v => v.is_active)
@@ -95,6 +102,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
       extra_unit_price: selectedVariant?.extra_unit_price ?? undefined,
       addons: selectedAddons,
       variant_name: vName,
+      variant_id: selectedVariant?.id ?? undefined,
       variant_price: variantPrice ?? undefined,
     }, qty)
     toast.success(t('addedToCart'))
@@ -448,7 +456,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                 </div>
               ) : (
                 /* Full order form */
-                <div className="animate-slide-up">
+                <div className="animate-slide-up" ref={orderFormRef}>
                   <OrderForm
                     product={product}
                     deliveryPrices={deliveryPrices}
@@ -470,6 +478,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                     addonQtys={addonQtys}
                     variantPrice={variantPrice}
                     variantName={selectedVariant?.name ?? null}
+                    variantId={selectedVariant?.id ?? null}
                   />
                   <div className="mt-4 text-center">
                     <button onClick={() => setMode('info')}
