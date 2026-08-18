@@ -86,11 +86,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // ── Save to Supabase (primary storage) ──
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .insert(orderPayload)
-    .select()
-    .single()
+  let orderQuery = supabaseAdmin.from('orders').insert(orderPayload).select().single()
+  let { data, error } = await orderQuery
+
+  if (error && /does not exist/.test(error.message)) {
+    console.warn('Optional columns missing, retrying without them:', error.message)
+    const { variant_id, fbclid, fbclid_captured_at, ...rest } = orderPayload as any
+    ;({ data, error } = await supabaseAdmin.from('orders').insert(rest).select().single())
+  }
 
   if (error) {
     console.error('Supabase insert error:', error)

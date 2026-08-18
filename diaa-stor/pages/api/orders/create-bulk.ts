@@ -48,6 +48,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const now = new Date().toISOString()
   const createdOrders: any[] = []
 
+  // If the insert fails because optional columns are missing from the DB
+  // (migrations 015/016 not run), retry without them so orders still save.
+  const insertOrder = async (payload: Record<string, unknown>) => {
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .insert(payload)
+      .select()
+      .single()
+    if (error && /does not exist/.test(error.message)) {
+      console.warn('Optional columns missing, retrying without them:', error.message)
+      const { variant_id, fbclid, fbclid_captured_at, ...rest } = payload as any
+      const retry = await supabaseAdmin.from('orders').insert(rest).select().single()
+      return { data: retry.data, error: retry.error }
+    }
+    return { data, error }
+  }
+
   const rawCookie = req.cookies?.['_fbc_captured']
   let fbclidGlobal: string | null = null
   let fbclidCapturedAt: number | null = null
@@ -88,11 +105,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       created_at:    now,
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('orders')
-      .insert(orderPayload)
-      .select()
-      .single()
+    const { data, error } = await insertOrder(orderPayload)
 
     if (error) {
       console.error('Supabase insert error:', error)
