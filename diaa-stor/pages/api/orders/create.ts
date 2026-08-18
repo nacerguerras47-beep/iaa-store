@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (error) {
     console.error('Supabase insert error:', error)
-    return res.status(500).json({ error: 'Erreur lors de la sauvegarde de la commande' })
+    return res.status(500).json({ error: 'Erreur lors de la sauvegarde de la commande', details: error.message })
   }
 
   const savedOrder = { ...orderPayload, id: data.id }

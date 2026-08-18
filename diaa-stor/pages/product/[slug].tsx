@@ -36,7 +36,8 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const inCart = isInCart(product.id)
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const t = setTimeout(() => window.scrollTo(0, 0), 150)
+    return () => clearTimeout(t)
   }, [])
 
   const hasPromo = product.promo_price && product.promo_price < product.price

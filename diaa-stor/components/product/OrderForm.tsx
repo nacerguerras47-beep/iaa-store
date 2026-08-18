@@ -157,7 +157,7 @@ const onWilayaChange = (code: string) => {
         body: JSON.stringify({ ...data, items: itemsPayload, total_delivery: deliveryCost }),
       })
       const result = await res.json()
-      if (!res.ok) throw new Error(result.error || t('serverError'))
+      if (!res.ok) throw new Error(result.error + (result.details ? ' — ' + result.details : '') || t('serverError'))
       if (result.sheet_error) {
         console.warn('Google Sheets error:', result.sheet_error)
         toast.error('Google Sheets: ' + result.sheet_error)
