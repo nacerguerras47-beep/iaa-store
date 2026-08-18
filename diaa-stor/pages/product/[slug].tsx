@@ -29,7 +29,6 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const { t } = useTranslation('common')
   const { addToCart, isInCart } = useCart()
   const [imgIdx, setImgIdx] = useState(0)
-  const [mode, setMode] = useState<'info' | 'order'>('order')
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [orderNumbers, setOrderNumbers] = useState<string[]>([])
   const [addonQtys, setAddonQtys] = useState<Record<string, number>>({})
@@ -281,7 +280,6 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                         const next = selectedVariantIdx === i ? null : i
                         setSelectedVariantIdx(next)
                         setSelectedBundleIdx(null)
-                        if (next !== null) setMode('order')
                         setQty(1)
                       }}
                         className={`w-full flex flex-col p-3 rounded-xl border-2 transition-all ${
@@ -324,7 +322,6 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                     <button key={i} type="button" onClick={() => {
                         const idx = selectedBundleIdx === i ? null : i
                         setSelectedBundleIdx(idx)
-                        if (idx !== null) setMode('order')
                         if (idx !== null && bundles?.[idx]?.quantity_trigger) {
                           setQty(bundles[idx].quantity_trigger!)
                         } else if (idx === null) {
@@ -413,81 +410,52 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
                 </div>
               )}
 
-              {/* Mode tabs */}
-              <div className="flex gap-2 mb-6">
-                <button onClick={() => setMode('info')}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${mode === 'info' ? 'bg-navy-700 text-white shadow-navy' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
-                  {t('information')}
+              {/* Add to cart + WhatsApp */}
+              <div className="space-y-3 mb-4">
+                <button onClick={handleAddToCart} disabled={isOutOfStock}
+                  className={`w-full py-4 text-base rounded-2xl transition-all ${
+                    isOutOfStock
+                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                      : inCart
+                        ? 'btn-outline'
+                        : 'btn-primary'
+                  }`}>
+                  <ShoppingCart size={20} />
+                  {isOutOfStock ? t('outOfStock') : inCart ? t('inCart') : t('addToCart')}
                 </button>
-                <button onClick={() => setMode('order')}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${mode === 'order' ? 'bg-gold-500 text-white shadow-gold' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
-                  {t('orderNow')}
-                </button>
+                <a href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="w-full btn-whatsapp py-4 text-base rounded-2xl">
+                  <MessageCircle size={20} /> {t('orderOnWhatsApp')}
+                </a>
               </div>
 
-              {mode === 'info' ? (
-                /* Cart + Buy Now buttons */
-                <div className="space-y-3">
-                  <button onClick={handleAddToCart} disabled={isOutOfStock}
-                    className={`w-full py-4 text-base rounded-2xl transition-all ${
-                      isOutOfStock
-                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-                        : inCart
-                          ? 'btn-outline'
-                          : 'btn-primary'
-                    }`}>
-                    <ShoppingCart size={20} />
-                    {isOutOfStock ? t('outOfStock') : inCart ? t('inCart') : t('addToCart')}
-                  </button>
-                  <button onClick={() => setMode('order')} disabled={isOutOfStock}
-                    className={`w-full py-4 text-base rounded-2xl transition-all ${
-                      isOutOfStock
-                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-                        : 'btn-gold'
-                    }`}>
-                    <Zap size={20} className={isOutOfStock ? '' : 'fill-white'} />
-                    {isOutOfStock ? t('outOfStock') : t('buyNow')}
-                  </button>
-                  <a href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="w-full btn-whatsapp py-4 text-base rounded-2xl">
-                    <MessageCircle size={20} /> {t('orderOnWhatsApp')}
-                  </a>
-                </div>
-              ) : (
-                /* Full order form */
-                <div className="animate-slide-up" ref={orderFormRef}>
-                  <OrderForm
-                    product={product}
-                    deliveryPrices={deliveryPrices}
-                    initialQty={qty}
-                    selectedBundle={selectedBundle}
-                    onSuccess={handleOrderSuccess}
-                    bundles={bundles}
-                    selectedBundleIdx={selectedBundleIdx}
-                    onSelectBundle={(idx) => {
-                      setSelectedBundleIdx(idx)
-                      if (idx !== null && bundles?.[idx]?.quantity_trigger) {
-                        setQty(bundles[idx].quantity_trigger!)
-                      } else if (idx === null) {
-                        setQty(1)
-                      }
-                    }}
-                    extraUnitPrice={selectedVariant?.extra_unit_price ?? null}
-                    addons={addons}
-                    addonQtys={addonQtys}
-                    variantPrice={variantPrice}
-                    variantName={selectedVariant?.name ?? null}
-                    variantId={selectedVariant?.id ?? null}
-                  />
-                  <div className="mt-4 text-center">
-                    <button onClick={() => setMode('info')}
-                      className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors flex items-center gap-1 mx-auto">
-                      <ChevronLeft size={14} /> {t('backToInfo')}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Order form — always open */}
+              <div className="animate-slide-up" ref={orderFormRef}>
+                <OrderForm
+                  product={product}
+                  deliveryPrices={deliveryPrices}
+                  initialQty={qty}
+                  selectedBundle={selectedBundle}
+                  onSuccess={handleOrderSuccess}
+                  bundles={bundles}
+                  selectedBundleIdx={selectedBundleIdx}
+                  onSelectBundle={(idx) => {
+                    setSelectedBundleIdx(idx)
+                    if (idx !== null && bundles?.[idx]?.quantity_trigger) {
+                      setQty(bundles[idx].quantity_trigger!)
+                    } else if (idx === null) {
+                      setQty(1)
+                    }
+                  }}
+                  extraUnitPrice={selectedVariant?.extra_unit_price ?? null}
+                  addons={addons}
+                  addonQtys={addonQtys}
+                  variantPrice={variantPrice}
+                  variantName={selectedVariant?.name ?? null}
+                  variantId={selectedVariant?.id ?? null}
+                />
+              </div>
             </div>
           </div>
         </div>
