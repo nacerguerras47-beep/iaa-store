@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GetServerSideProps } from 'next'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -34,12 +34,9 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
   const [addonQtys, setAddonQtys] = useState<Record<string, number>>({})
   const [qty, setQty] = useState(1)
   const inCart = isInCart(product.id)
-  const orderFormRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (orderFormRef.current) {
-      orderFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   const hasPromo = product.promo_price && product.promo_price < product.price
@@ -431,7 +428,7 @@ export default function ProductPage({ product, addons, deliveryPrices }: { produ
               </div>
 
               {/* Order form — always open */}
-              <div className="animate-slide-up" ref={orderFormRef}>
+              <div className="animate-slide-up">
                 <OrderForm
                   product={product}
                   deliveryPrices={deliveryPrices}
